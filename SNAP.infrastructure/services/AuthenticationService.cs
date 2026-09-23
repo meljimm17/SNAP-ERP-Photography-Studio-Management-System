@@ -106,6 +106,16 @@ namespace SNAP.infrastructure.services
                     .Options;
 
                 using var tenantDb = new TenantErpDbContext(tenantOptions);
+
+                // Program.cs only auto-migrates the single default tenant database at startup, not
+                // every company's own database (each CompanyDatabases row can point at a completely
+                // different server/database). Migrating here, right before the first real query
+                // against this specific tenant, makes every company's database self-healing on
+                // login instead of silently relying on someone having remembered to run
+                // `dotnet ef database update` against it by hand. Migrate() is a no-op (one quick
+                // history-table check) once a database is already up to date.
+                tenantDb.Database.Migrate();
+
                 var user = tenantDb.TenantUsers
                     .AsNoTracking()
                     .FirstOrDefault(x => x.Username == username && x.Status == UserStatus.Active);
