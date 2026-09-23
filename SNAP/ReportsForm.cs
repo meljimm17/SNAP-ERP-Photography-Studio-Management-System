@@ -4,8 +4,10 @@ using System.Linq;
 using System.Windows.Forms;
 using Microsoft.EntityFrameworkCore;
 using SNAP.Controls;
+using SNAP.domain.entities;
 using SNAP.domain.enums;
 using SNAP.infrastructure.Data;
+using SNAP.infrastructure.services;
 
 namespace SNAP
 {
@@ -30,6 +32,7 @@ namespace SNAP
         private readonly DataGridView _outstandingGrid = new();
         private readonly DataGridView _equipmentUsageGrid = new();
         private readonly DataGridView _lowStockGrid = new();
+        private readonly RoundedButton _reorderButton = new() { Text = "Reorder Selected", IsPrimary = false };
 
         // Equipment/Inventory/Finance are Small-tier-and-up additions - Micro's Reports screen
         // stays exactly as it always was (Total Income/Bookings/Payments + Outstanding Payments).
@@ -168,7 +171,7 @@ namespace SNAP
             if (!_isMicroTier)
             {
                 tabs.TabPages.Add(BuildGridTab("Equipment Usage", _equipmentUsageGrid));
-                tabs.TabPages.Add(BuildGridTab("Low Stock Alerts", _lowStockGrid));
+                tabs.TabPages.Add(BuildLowStockTab());
             }
 
             card.Controls.Add(tabs);
@@ -188,6 +191,102 @@ namespace SNAP
 
             page.Controls.Add(grid);
             return page;
+        }
+
+        private TabPage BuildLowStockTab()
+        {
+            var page = new TabPage("Low Stock Alerts") { BackColor = AppTheme.WhiteColor };
+
+            AppTheme.StyleGrid(_lowStockGrid);
+            _lowStockGrid.Dock = DockStyle.Fill;
+            _lowStockGrid.ReadOnly = true;
+            _lowStockGrid.AutoGenerateColumns = true;
+            _lowStockGrid.SelectionMode = DataGridViewSelectionMode.FullRowSelect;
+            _lowStockGrid.MultiSelect = false;
+
+            var toolbar = new FlowLayoutPanel
+            {
+                Dock = DockStyle.Fill,
+                Padding = new Padding(0, 12, 0, 12),
+                FlowDirection = FlowDirection.LeftToRight,
+                BackColor = AppTheme.WhiteColor
+            };
+            _reorderButton.Width = 150;
+            _reorderButton.Click += (_, _) => ReorderSelected();
+            toolbar.Controls.Add(_reorderButton);
+
+            var layout = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 1, RowCount = 2 };
+            layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 56));
+            layout.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
+            layout.Controls.Add(toolbar, 0, 0);
+            layout.Controls.Add(_lowStockGrid, 0, 1);
+            page.Controls.Add(layout);
+
+            return page;
+        }
+
+        private void ReorderSelected()
+        {
+            if (_lowStockGrid.SelectedRows.Count == 0)
+            {
+                MessageBox.Show("Select a low-stock item first.", "Reorder", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                return;
+            }
+
+            var selected = (LowStockRow)_lowStockGrid.SelectedRows[0].DataBoundItem;
+            if (selected is null) return;
+
+            using var db = CreateDbContext();
+            var item = db.InventoryItems.Find(selected.InventoryId);
+            if (item is null) return;
+
+            var suppliers = db.Suppliers.Where(x => x.IsActive).OrderBy(x => x.SupplierName).ToList();
+            var items = db.InventoryItems.Where(x => x.IsActive).OrderBy(x => x.ItemName).ToList();
+
+            if (suppliers.Count == 0)
+            {
+                MessageBox.Show("Add at least one active Supplier first.", "Reorder", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                return;
+            }
+
+            var shortfall = System.Math.Max(item.ReorderLevel - item.QuantityOnHand, 1);
+            var prefill = new PurchaseOrder
+            {
+                SupplierId = item.SupplierId ?? suppliers.First().SupplierId,
+                Status = PurchaseOrderStatus.Draft,
+                OrderDate = DateTime.Today,
+                Lines = new List<PurchaseOrderLine>
+                {
+                    new() { InventoryId = item.InventoryId, QuantityOrdered = shortfall, UnitCost = item.UnitCost ?? 0m, Inventory = item }
+                }
+            };
+
+            using var dialog = new PurchaseOrderDialogForm(suppliers, items, prefill);
+            if (dialog.ShowDialog(this) != DialogResult.OK) return;
+
+            var supplierName = suppliers.First(s => s.SupplierId == dialog.SupplierId).SupplierName;
+            var po = new PurchaseOrder
+            {
+                SupplierId = dialog.SupplierId,
+                Status = dialog.Status,
+                OrderDate = dialog.OrderDate,
+                ExpectedDate = dialog.ExpectedDate,
+                CreatedByUserId = AppSession.CurrentUserId > 0 ? AppSession.CurrentUserId : null,
+                Notes = dialog.Notes,
+                CreatedAt = DateTime.UtcNow
+            };
+            foreach (var line in dialog.Lines)
+            {
+                po.Lines.Add(new PurchaseOrderLine { InventoryId = line.InventoryId, QuantityOrdered = line.QuantityOrdered, UnitCost = line.UnitCost });
+            }
+            db.PurchaseOrders.Add(po);
+
+            TenantSyncService.SaveAndSync(db, entry => entry.Entity == po
+                ? $"Created PO for {supplierName} (reorder): {po.Lines.Count} line item(s), status {po.Status}"
+                : null);
+
+            MessageBox.Show("Purchase order created from reorder.", "Success", MessageBoxButtons.OK, MessageBoxIcon.Information);
+            LoadData();
         }
 
         private void LoadData()
@@ -273,6 +372,7 @@ namespace SNAP
                         .OrderBy(i => i.QuantityOnHand)
                         .Select(i => new LowStockRow
                         {
+                            InventoryId = i.InventoryId,
                             ItemName = i.ItemName,
                             QuantityOnHand = i.QuantityOnHand,
                             ReorderLevel = i.ReorderLevel,
@@ -317,6 +417,7 @@ namespace SNAP
 
         private sealed class LowStockRow
         {
+            public int InventoryId { get; set; }
             public string ItemName { get; set; } = string.Empty;
             public decimal QuantityOnHand { get; set; }
             public decimal ReorderLevel { get; set; }
