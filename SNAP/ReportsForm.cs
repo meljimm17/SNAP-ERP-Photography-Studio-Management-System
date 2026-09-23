@@ -3,6 +3,7 @@ using System.Drawing;
 using System.Linq;
 using System.Windows.Forms;
 using Microsoft.EntityFrameworkCore;
+using SNAP.Controllers;
 using SNAP.Controls;
 using SNAP.domain.entities;
 using SNAP.domain.enums;
@@ -19,6 +20,8 @@ namespace SNAP
     /// </summary>
     public class ReportsForm : UserControl
     {
+        private readonly InventoryController _inventoryController = new();
+
         private readonly RoundedDatePicker _fromDate = new() { Format = DateTimePickerFormat.Custom, CustomFormat = "MMMM d, yyyy" };
         private readonly RoundedDatePicker _toDate = new() { Format = DateTimePickerFormat.Custom, CustomFormat = "MMMM d, yyyy" };
         private readonly RoundedButton _apply = new() { Text = "Apply" };
@@ -277,12 +280,19 @@ namespace SNAP
             var selected = (LowStockRow)_lowStockGrid.SelectedRows[0].DataBoundItem;
             if (selected is null) return;
 
-            using var db = CreateDbContext();
-            var item = db.InventoryItems.Find(selected.InventoryId);
-            if (item is null) return;
+            Inventory item;
+            try
+            {
+                item = _inventoryController.GetInventoryItem(selected.InventoryId);
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show(ex.Message, "Error", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                return;
+            }
 
-            var suppliers = db.Suppliers.Where(x => x.IsActive).OrderBy(x => x.SupplierName).ToList();
-            var items = db.InventoryItems.Where(x => x.IsActive).OrderBy(x => x.ItemName).ToList();
+            var suppliers = _inventoryController.GetActiveSuppliers();
+            var items = _inventoryController.GetActiveInventoryItems();
 
             if (suppliers.Count == 0)
             {
@@ -305,29 +315,17 @@ namespace SNAP
             using var dialog = new PurchaseOrderDialogForm(suppliers, items, prefill);
             if (dialog.ShowDialog(this) != DialogResult.OK) return;
 
-            var supplierName = suppliers.First(s => s.SupplierId == dialog.SupplierId).SupplierName;
-            var po = new PurchaseOrder
+            try
             {
-                SupplierId = dialog.SupplierId,
-                Status = dialog.Status,
-                OrderDate = dialog.OrderDate,
-                ExpectedDate = dialog.ExpectedDate,
-                CreatedByUserId = AppSession.CurrentUserId > 0 ? AppSession.CurrentUserId : null,
-                Notes = dialog.Notes,
-                CreatedAt = DateTime.UtcNow
-            };
-            foreach (var line in dialog.Lines)
-            {
-                po.Lines.Add(new PurchaseOrderLine { InventoryId = line.InventoryId, QuantityOrdered = line.QuantityOrdered, UnitCost = line.UnitCost });
+                var lines = dialog.Lines.Select(l => new PurchaseOrderLineInput(l.InventoryId, l.QuantityOrdered, l.UnitCost)).ToList();
+                _inventoryController.AddPurchaseOrder(dialog.SupplierId, dialog.Status, dialog.OrderDate, dialog.ExpectedDate, dialog.Notes, lines);
+                MessageBox.Show("Purchase order created from reorder.", "Success", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                LoadData();
             }
-            db.PurchaseOrders.Add(po);
-
-            TenantSyncService.SaveAndSync(db, entry => entry.Entity == po
-                ? $"Created PO for {supplierName} (reorder): {po.Lines.Count} line item(s), status {po.Status}"
-                : null);
-
-            MessageBox.Show("Purchase order created from reorder.", "Success", MessageBoxButtons.OK, MessageBoxIcon.Information);
-            LoadData();
+            catch (Exception ex)
+            {
+                MessageBox.Show(ex.Message, "Error", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+            }
         }
 
         /// <summary>
