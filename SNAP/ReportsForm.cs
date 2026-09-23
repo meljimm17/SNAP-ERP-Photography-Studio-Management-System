@@ -34,6 +34,15 @@ namespace SNAP
         private readonly DataGridView _lowStockGrid = new();
         private readonly RoundedButton _reorderButton = new() { Text = "Reorder Selected", IsPrimary = false };
 
+        private readonly Panel _incomeStatementHost = new() { Dock = DockStyle.Fill, BackColor = AppTheme.WhiteColor, AutoScroll = true };
+        private readonly Panel _balanceSheetHost = new() { Dock = DockStyle.Fill, BackColor = AppTheme.WhiteColor, AutoScroll = true };
+        private readonly Panel _cashFlowHost = new() { Dock = DockStyle.Fill, BackColor = AppTheme.WhiteColor, AutoScroll = true };
+
+        private readonly DataGridView _auditLogGrid = new();
+        private readonly RoundedComboBox _auditEntityFilter = new();
+        private readonly RoundedComboBox _auditActorFilter = new();
+        private readonly RoundedButton _auditApply = new() { Text = "Filter" };
+
         // Equipment/Inventory/Finance are Small-tier-and-up additions - Micro's Reports screen
         // stays exactly as it always was (Total Income/Bookings/Payments + Outstanding Payments).
         private readonly bool _isMicroTier = AppSession.CurrentPlanTier == PlanTier.Micro;
@@ -153,8 +162,9 @@ namespace SNAP
         }
 
         /// <summary>
-        /// Outstanding Payments / Equipment Usage / Low Stock Alerts on three tabs of one card,
-        /// rather than stacking three separate grids vertically.
+        /// Outstanding Payments, Equipment Usage, Low Stock Alerts, Income Statement, Balance
+        /// Sheet, Cash Flow Statement, and Audit Log - the full 7-tab Reports module - on one card
+        /// rather than stacking separate grids vertically.
         /// </summary>
         private RoundedPanel BuildDetailTabs()
         {
@@ -172,10 +182,41 @@ namespace SNAP
             {
                 tabs.TabPages.Add(BuildGridTab("Equipment Usage", _equipmentUsageGrid));
                 tabs.TabPages.Add(BuildLowStockTab());
+                tabs.TabPages.Add(BuildStatementTab("Income Statement", _incomeStatementHost));
+                tabs.TabPages.Add(BuildStatementTab("Balance Sheet", _balanceSheetHost));
+                tabs.TabPages.Add(BuildStatementTab("Cash Flow Statement", _cashFlowHost));
+                tabs.TabPages.Add(BuildAuditLogTab());
             }
 
             card.Controls.Add(tabs);
             return card;
+        }
+
+        private static TabPage BuildStatementTab(string title, Panel host)
+        {
+            var page = new TabPage(title) { BackColor = AppTheme.WhiteColor };
+
+            var disclaimer = new Label
+            {
+                Text = "Prepared for internal management use, cash/modified-cash basis.",
+                ForeColor = AppTheme.TextSecondaryColor,
+                Font = AppTheme.SecondaryFont,
+                AutoSize = false,
+                Dock = DockStyle.Top,
+                Height = 24,
+                Padding = new Padding(0, 4, 0, 0)
+            };
+
+            host.Padding = new Padding(8, 4, 8, 8);
+
+            var layout = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 1, RowCount = 2 };
+            layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 24));
+            layout.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
+            layout.Controls.Add(disclaimer, 0, 0);
+            layout.Controls.Add(host, 0, 1);
+            page.Controls.Add(layout);
+
+            return page;
         }
 
         private static TabPage BuildGridTab(string title, DataGridView grid)
@@ -289,6 +330,71 @@ namespace SNAP
             LoadData();
         }
 
+        /// <summary>
+        /// Read-only audit trail: newest first, filterable by entity, actor, and (reusing the
+        /// page's own From/To date range) date - no edit/delete here, since an audit trail that
+        /// could be altered from its own viewer isn't a trail.
+        /// </summary>
+        private TabPage BuildAuditLogTab()
+        {
+            var page = new TabPage("Audit Log") { BackColor = AppTheme.WhiteColor };
+
+            AppTheme.StyleGrid(_auditLogGrid);
+            _auditLogGrid.Dock = DockStyle.Fill;
+            _auditLogGrid.ReadOnly = true;
+            _auditLogGrid.AutoGenerateColumns = true;
+            _auditLogGrid.SelectionMode = DataGridViewSelectionMode.FullRowSelect;
+            _auditLogGrid.MultiSelect = false;
+            AppTheme.StyleStatusColumn(_auditLogGrid, "Action", value => (value?.ToString() ?? string.Empty) switch
+            {
+                "Create" => ("Create", StatusKind.Success),
+                "Update" => ("Update", StatusKind.Info),
+                "Delete" => ("Delete", StatusKind.Danger),
+                var other => (other, StatusKind.Neutral)
+            });
+
+            var toolbar = new FlowLayoutPanel
+            {
+                Dock = DockStyle.Fill,
+                Padding = new Padding(0, 12, 0, 12),
+                FlowDirection = FlowDirection.LeftToRight,
+                BackColor = AppTheme.WhiteColor
+            };
+
+            _auditEntityFilter.Width = 160;
+            _auditEntityFilter.Margin = new Padding(0, 0, 8, 0);
+            _auditEntityFilter.Items.Add("All Modules");
+            foreach (var entity in AuditableEntityNames) _auditEntityFilter.Items.Add(entity);
+            _auditEntityFilter.SelectedIndex = 0;
+
+            _auditActorFilter.Width = 180;
+            _auditActorFilter.Margin = new Padding(0, 0, 8, 0);
+            _auditActorFilter.Items.Add("All Actors");
+            _auditActorFilter.SelectedIndex = 0;
+
+            _auditApply.Width = 90;
+            _auditApply.Click += (_, _) => LoadData();
+
+            toolbar.Controls.Add(_auditEntityFilter);
+            toolbar.Controls.Add(_auditActorFilter);
+            toolbar.Controls.Add(_auditApply);
+
+            var layout = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 1, RowCount = 2 };
+            layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 56));
+            layout.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
+            layout.Controls.Add(toolbar, 0, 0);
+            layout.Controls.Add(_auditLogGrid, 0, 1);
+            page.Controls.Add(layout);
+
+            return page;
+        }
+
+        private static readonly string[] AuditableEntityNames =
+        {
+            "Equipment", "Inventory", "Supplier", "Payment", "Expense", "SalaryPayment",
+            "TenantUser", "Company", "ProductSale", "PurchaseOrder", "OwnerTransaction", "Booking", "Customer"
+        };
+
         private void LoadData()
         {
             try
@@ -305,13 +411,19 @@ namespace SNAP
                     .Where(p => !p.IsDeleted && p.PaymentDate >= from && p.PaymentDate < toExclusive)
                     .ToList();
 
+                var productSalesInRange = db.ProductSales
+                    .Where(p => !p.IsDeleted && p.SaleDate >= from && p.SaleDate < toExclusive)
+                    .ToList();
+
                 var bookingsInRange = db.Bookings
                     .Include(b => b.Customer)
                     .Where(b => b.Status != BookingStatus.Cancelled && b.SessionDate >= from && b.SessionDate < toExclusive)
                     .OrderBy(b => b.SessionDate)
                     .ToList();
 
-                _totalIncomeValue.Text = $"₱{paymentsInRange.Sum(p => p.AmountPaid):N2}";
+                // Total Income = Payments + Product Sales, so it never silently undercounts real
+                // revenue now that Product Sales exist as a second revenue stream.
+                _totalIncomeValue.Text = $"₱{paymentsInRange.Sum(p => p.AmountPaid) + productSalesInRange.Sum(p => p.TotalAmount):N2}";
                 _bookingsValue.Text = bookingsInRange.Count.ToString();
                 _paymentsValue.Text = paymentsInRange.Count.ToString();
 
@@ -379,12 +491,163 @@ namespace SNAP
                             Supplier = i.Supplier != null ? i.Supplier.SupplierName : string.Empty
                         })
                         .ToList();
+
+                    RenderIncomeStatement(db, from, _toDate.Value.Date);
+                    RenderBalanceSheet(db, _toDate.Value.Date);
+                    RenderCashFlowStatement(db, from, _toDate.Value.Date);
+                    LoadAuditLog(db, from, toExclusive);
                 }
             }
             catch (Exception ex)
             {
                 MessageBox.Show($"Database Connection Error\n\n{ex.Message}\n\nMake sure the databases are created and configured.", "Database Error", MessageBoxButtons.OK, MessageBoxIcon.Warning);
             }
+        }
+
+        private void RenderIncomeStatement(TenantErpDbContext db, DateTime from, DateTime toInclusive)
+        {
+            var result = FinancialStatementService.ComputeIncomeStatement(db, from, toInclusive);
+
+            var flow = new FlowLayoutPanel { Dock = DockStyle.Fill, FlowDirection = FlowDirection.TopDown, WrapContents = false, AutoScroll = true };
+            flow.Controls.Add(BuildStatementLine("Revenue (Payments + Product Sales)", result.Revenue));
+            flow.Controls.Add(BuildStatementLine("Less: Operating Expenses", -result.OperatingExpenses, indentPx: 12));
+            flow.Controls.Add(BuildStatementLine("Less: Salary & Wages", -result.SalaryWages, indentPx: 12));
+            flow.Controls.Add(BuildStatementRule());
+            flow.Controls.Add(BuildStatementLine("Net Income", result.NetIncome, bold: true));
+
+            _incomeStatementHost.Controls.Clear();
+            _incomeStatementHost.Controls.Add(flow);
+        }
+
+        private void RenderBalanceSheet(TenantErpDbContext db, DateTime asOfDate)
+        {
+            var result = FinancialStatementService.ComputeBalanceSheet(db, asOfDate);
+            const int colWidth = 300;
+
+            var assetsFlow = new FlowLayoutPanel { FlowDirection = FlowDirection.TopDown, WrapContents = false, AutoSize = true, AutoSizeMode = AutoSizeMode.GrowAndShrink, Margin = new Padding(0, 0, 12, 0) };
+            assetsFlow.Controls.Add(BuildStatementLine("ASSETS", null, bold: true, width: colWidth));
+            assetsFlow.Controls.Add(BuildStatementLine("Cash", result.Cash, indentPx: 12, width: colWidth));
+            assetsFlow.Controls.Add(BuildStatementLine("Accounts Receivable", result.AccountsReceivable, indentPx: 12, width: colWidth));
+            assetsFlow.Controls.Add(BuildStatementLine("Inventory (at cost)", result.Inventory, indentPx: 12, width: colWidth));
+            assetsFlow.Controls.Add(BuildStatementLine("Equipment (at cost)", result.Equipment, indentPx: 12, width: colWidth));
+            assetsFlow.Controls.Add(BuildStatementRule(colWidth));
+            assetsFlow.Controls.Add(BuildStatementLine("Total Assets", result.TotalAssets, bold: true, width: colWidth));
+
+            var liabFlow = new FlowLayoutPanel { FlowDirection = FlowDirection.TopDown, WrapContents = false, AutoSize = true, AutoSizeMode = AutoSizeMode.GrowAndShrink };
+            liabFlow.Controls.Add(BuildStatementLine("LIABILITIES", null, bold: true, width: colWidth));
+            liabFlow.Controls.Add(BuildStatementLine("Accounts Payable", result.AccountsPayable, indentPx: 12, width: colWidth));
+            liabFlow.Controls.Add(BuildStatementLine(string.Empty, null, width: colWidth));
+            liabFlow.Controls.Add(BuildStatementLine("EQUITY", null, bold: true, width: colWidth));
+            liabFlow.Controls.Add(BuildStatementLine("Owner's Capital", result.OwnersCapital, indentPx: 12, width: colWidth));
+            liabFlow.Controls.Add(BuildStatementLine("Retained Earnings", result.RetainedEarnings, indentPx: 12, width: colWidth));
+            liabFlow.Controls.Add(BuildStatementLine("Total Equity", result.TotalEquity, bold: true, indentPx: 12, width: colWidth));
+            liabFlow.Controls.Add(BuildStatementRule(colWidth));
+            liabFlow.Controls.Add(BuildStatementLine("Total Liabilities + Equity", result.TotalLiabilitiesAndEquity, bold: true, width: colWidth));
+
+            var isBalanced = result.TotalAssets == result.TotalLiabilitiesAndEquity;
+            var balancedNotice = new Label
+            {
+                Text = isBalanced ? "Balanced (Assets = Liabilities + Equity)" : $"Out of balance by ₱{Math.Abs(result.TotalAssets - result.TotalLiabilitiesAndEquity):N2}",
+                ForeColor = isBalanced ? AppTheme.SuccessColor : AppTheme.DangerColor,
+                Font = new Font("Segoe UI", 9.5f, FontStyle.Bold),
+                AutoSize = true,
+                Dock = DockStyle.Bottom,
+                Margin = new Padding(0, 8, 0, 0)
+            };
+
+            var columns = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 2, RowCount = 1, AutoSize = true };
+            columns.Controls.Add(assetsFlow, 0, 0);
+            columns.Controls.Add(liabFlow, 1, 0);
+
+            var layout = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 1, RowCount = 2 };
+            layout.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
+            layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 30));
+            layout.Controls.Add(columns, 0, 0);
+            layout.Controls.Add(balancedNotice, 0, 1);
+
+            _balanceSheetHost.Controls.Clear();
+            _balanceSheetHost.Controls.Add(layout);
+        }
+
+        private void RenderCashFlowStatement(TenantErpDbContext db, DateTime from, DateTime toInclusive)
+        {
+            var result = FinancialStatementService.ComputeCashFlowStatement(db, from, toInclusive);
+
+            var flow = new FlowLayoutPanel { Dock = DockStyle.Fill, FlowDirection = FlowDirection.TopDown, WrapContents = false, AutoScroll = true };
+            flow.Controls.Add(BuildStatementLine("Net Income", result.NetIncome, bold: true));
+            flow.Controls.Add(BuildStatementLine("+/- Change in Accounts Receivable", result.AccountsReceivableChange, indentPx: 12));
+            flow.Controls.Add(BuildStatementLine("+/- Change in Accounts Payable", result.AccountsPayableChange, indentPx: 12));
+            flow.Controls.Add(BuildStatementLine("+/- Change in Inventory", result.InventoryChange, indentPx: 12));
+            flow.Controls.Add(BuildStatementRule());
+            flow.Controls.Add(BuildStatementLine("Net Cash from Operating Activities", result.NetCashFromOperations, bold: true));
+            flow.Controls.Add(BuildStatementLine("Equipment purchased (Investing)", -result.EquipmentPurchased, indentPx: 12));
+            flow.Controls.Add(BuildStatementLine("Owner Contributions/Withdrawals (Financing)", result.OwnerFinancingNet, indentPx: 12));
+            flow.Controls.Add(BuildStatementRule());
+            flow.Controls.Add(BuildStatementLine("Net Change in Cash", result.NetChangeInCash, bold: true));
+            flow.Controls.Add(BuildStatementLine("Beginning Cash", result.BeginningCash));
+            flow.Controls.Add(BuildStatementLine("Ending Cash", result.EndingCash, bold: true));
+
+            _cashFlowHost.Controls.Clear();
+            _cashFlowHost.Controls.Add(flow);
+        }
+
+        private static Control BuildStatementLine(string label, decimal? value, bool bold = false, int indentPx = 0, int width = 520)
+        {
+            var row = new TableLayoutPanel { Width = width, Height = 26, ColumnCount = 2, RowCount = 1, Margin = new Padding(indentPx, 0, 0, 0) };
+            row.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 65));
+            row.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 35));
+
+            var font = bold ? new Font("Segoe UI", 9.5f, FontStyle.Bold) : AppTheme.BodyFont;
+            row.Controls.Add(new Label { Text = label, Font = font, ForeColor = AppTheme.TextPrimaryColor, Dock = DockStyle.Fill, TextAlign = ContentAlignment.MiddleLeft, AutoEllipsis = true }, 0, 0);
+            row.Controls.Add(new Label
+            {
+                Text = value is null ? string.Empty : value < 0 ? $"(₱{-value:N2})" : $"₱{value:N2}",
+                Font = font,
+                ForeColor = AppTheme.TextPrimaryColor,
+                Dock = DockStyle.Fill,
+                TextAlign = ContentAlignment.MiddleRight
+            }, 1, 0);
+            return row;
+        }
+
+        private static Control BuildStatementRule(int width = 520) =>
+            new Panel { Width = width, Height = 1, BackColor = AppTheme.BorderColor, Margin = new Padding(0, 4, 0, 4) };
+
+        private void LoadAuditLog(TenantErpDbContext db, DateTime from, DateTime toExclusive)
+        {
+            var query = db.AuditLogs.Where(a => a.Timestamp >= from && a.Timestamp < toExclusive);
+
+            if (_auditEntityFilter.SelectedItem is string entityName && entityName != "All Modules")
+            {
+                query = query.Where(a => a.EntityName == entityName);
+            }
+
+            if (_auditActorFilter.SelectedItem is string actorName && actorName != "All Actors")
+            {
+                query = query.Where(a => a.ActorName == actorName);
+            }
+
+            _auditLogGrid.DataSource = query
+                .OrderByDescending(a => a.Timestamp)
+                .Select(a => new AuditLogRow
+                {
+                    Timestamp = a.Timestamp,
+                    Actor = a.ActorName,
+                    Entity = a.EntityName,
+                    EntityId = a.EntityId,
+                    Action = a.Action.ToString(),
+                    Summary = a.Summary ?? string.Empty
+                })
+                .ToList();
+
+            // Refresh the actor filter's options from what's actually in the log, preserving the
+            // current selection so re-filtering doesn't silently reset it back to "All Actors".
+            var previousActor = _auditActorFilter.SelectedItem as string;
+            var actors = db.AuditLogs.Select(a => a.ActorName).Distinct().OrderBy(a => a).ToList();
+            _auditActorFilter.Items.Clear();
+            _auditActorFilter.Items.Add("All Actors");
+            foreach (var actor in actors) _auditActorFilter.Items.Add(actor);
+            _auditActorFilter.SelectedItem = previousActor is not null && _auditActorFilter.Items.Contains(previousActor) ? previousActor : "All Actors";
         }
 
         private static TenantErpDbContext CreateDbContext()
@@ -422,6 +685,16 @@ namespace SNAP
             public decimal QuantityOnHand { get; set; }
             public decimal ReorderLevel { get; set; }
             public string Supplier { get; set; } = string.Empty;
+        }
+
+        private sealed class AuditLogRow
+        {
+            public DateTime Timestamp { get; set; }
+            public string Actor { get; set; } = string.Empty;
+            public string Entity { get; set; } = string.Empty;
+            public int EntityId { get; set; }
+            public string Action { get; set; } = string.Empty;
+            public string Summary { get; set; } = string.Empty;
         }
     }
 }

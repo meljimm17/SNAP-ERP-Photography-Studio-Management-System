@@ -281,9 +281,16 @@ namespace SNAP
                 var bookingsThisMonth = db.Bookings.Count(b =>
                     b.SessionDate >= monthStart && b.SessionDate < monthEnd && b.Status != BookingStatus.Cancelled);
 
-                var revenueThisMonth = db.Payments
-                    .Where(p => p.PaymentDate >= monthStart && p.PaymentDate < monthEnd)
+                // Payments + Product Sales, so this never silently undercounts real revenue now
+                // that Product Sales exist as a second revenue stream (matches Reports' Total
+                // Income stat card, which was updated for the same reason).
+                var paymentRevenue = db.Payments
+                    .Where(p => !p.IsDeleted && p.PaymentDate >= monthStart && p.PaymentDate < monthEnd)
                     .Sum(p => (decimal?)p.AmountPaid) ?? 0m;
+                var productSaleRevenue = db.ProductSales
+                    .Where(p => !p.IsDeleted && p.SaleDate >= monthStart && p.SaleDate < monthEnd)
+                    .Sum(p => (decimal?)p.TotalAmount) ?? 0m;
+                var revenueThisMonth = paymentRevenue + productSaleRevenue;
 
                 var totalsByBooking = db.Payments
                     .GroupBy(p => p.BookingId)
