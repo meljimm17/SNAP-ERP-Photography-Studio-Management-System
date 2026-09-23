@@ -176,8 +176,16 @@ namespace SNAP.infrastructure.Migrations.TenantErpDb
 
                     SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("EquipmentId"));
 
+                    b.Property<decimal?>("AcquisitionCost")
+                        .HasColumnType("decimal(18,2)");
+
                     b.Property<int?>("AssignedToUserId")
                         .HasColumnType("int");
+
+                    b.Property<int>("Category")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int")
+                        .HasDefaultValue(0);
 
                     b.Property<DateTime>("CreatedAt")
                         .HasColumnType("datetime2");

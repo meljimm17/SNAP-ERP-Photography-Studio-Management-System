@@ -14,6 +14,7 @@ namespace SNAP
         private readonly RoundedButton _add = new();
         private readonly RoundedButton _edit = new() { IsPrimary = false };
         private readonly RoundedButton _delete = new() { IsPrimary = false };
+        private readonly RoundedComboBox _categoryFilter = new();
 
         public EquipmentForm(AccessLevel accessLevel = AccessLevel.Full)
         {
@@ -50,6 +51,13 @@ namespace SNAP
             _edit.Width = 90;
             _delete.Width = 90;
             _edit.Margin = new Padding(0, 0, 8, 0);
+            _delete.Margin = new Padding(0, 0, 8, 0);
+
+            _categoryFilter.Width = 180;
+            _categoryFilter.Items.Add("All Categories");
+            foreach (var category in Enum.GetValues<EquipmentCategory>()) _categoryFilter.Items.Add(category);
+            _categoryFilter.SelectedIndex = 0;
+            _categoryFilter.SelectedIndexChanged += (_, _) => LoadData();
 
             _add.Click += (_, _) => AddEquipment();
             _edit.Click += (_, _) => EditEquipment();
@@ -57,6 +65,7 @@ namespace SNAP
 
             toolbar.Controls.Add(_edit);
             toolbar.Controls.Add(_delete);
+            toolbar.Controls.Add(_categoryFilter);
 
             var header = AppTheme.CreatePageHeader("Equipment", "Manage photography equipment and availability.", _add);
             Controls.Add(AppTheme.BuildPage(header, toolbar, AppTheme.WrapContent(_grid)));
@@ -74,14 +83,23 @@ namespace SNAP
             try
             {
                 using var db = CreateDbContext();
-                _grid.DataSource = db.Equipment
+                var query = db.Equipment
                     .Include(x => x.AssignedToUser)
-                    .Where(x => x.IsActive)
+                    .Where(x => x.IsActive);
+
+                if (_categoryFilter.SelectedItem is EquipmentCategory category)
+                {
+                    query = query.Where(x => x.Category == category);
+                }
+
+                _grid.DataSource = query
                     .OrderByDescending(x => x.CreatedAt)
                     .Select(x => new EquipmentRow
                     {
                         EquipmentId = x.EquipmentId,
                         EquipmentName = x.EquipmentName,
+                        Category = x.Category.ToString(),
+                        AcquisitionCost = x.AcquisitionCost,
                         Status = x.Status.ToString(),
                         AssignedTo = x.AssignedToUser != null ? x.AssignedToUser.FullName : "Unassigned",
                         Notes = x.Notes ?? string.Empty
@@ -117,6 +135,8 @@ namespace SNAP
             db.Equipment.Add(new Equipment
             {
                 EquipmentName = dialog.EquipmentName,
+                Category = dialog.Category,
+                AcquisitionCost = dialog.AcquisitionCost,
                 Status = dialog.Status,
                 AssignedToUserId = dialog.AssignedToUserId,
                 Notes = dialog.Notes,
@@ -146,6 +166,8 @@ namespace SNAP
             if (dialog.ShowDialog(this) != DialogResult.OK) return;
 
             entity.EquipmentName = dialog.EquipmentName;
+            entity.Category = dialog.Category;
+            entity.AcquisitionCost = dialog.AcquisitionCost;
             entity.Status = dialog.Status;
             entity.AssignedToUserId = dialog.AssignedToUserId;
             entity.Notes = dialog.Notes;
@@ -181,6 +203,8 @@ namespace SNAP
         {
             public int EquipmentId { get; set; }
             public string EquipmentName { get; set; } = string.Empty;
+            public string Category { get; set; } = string.Empty;
+            public decimal? AcquisitionCost { get; set; }
             public string Status { get; set; } = string.Empty;
             public string AssignedTo { get; set; } = string.Empty;
             public string Notes { get; set; } = string.Empty;

@@ -8,6 +8,11 @@ namespace SNAP.domain.entities
 
         public string EquipmentName { get; set; } = string.Empty;
 
+        public EquipmentCategory Category { get; set; } = EquipmentCategory.PhotographyGear;
+
+        /// <summary>Values Equipment as a fixed asset on the Balance Sheet.</summary>
+        public decimal? AcquisitionCost { get; set; }
+
         public EquipmentStatus Status { get; set; } = EquipmentStatus.Available;
 
         public int? AssignedToUserId { get; set; }

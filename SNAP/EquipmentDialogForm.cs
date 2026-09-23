@@ -12,6 +12,8 @@ namespace SNAP
     public class EquipmentDialogForm : Form
     {
         private readonly RoundedTextBox _nameBox = new() { PlaceholderText = "Equipment Name (text, e.g. Canon R5)" };
+        private readonly RoundedComboBox _categoryCombo = new();
+        private readonly RoundedTextBox _acquisitionCostBox = new() { PlaceholderText = "Acquisition Cost (decimal number, optional)" };
         private readonly RoundedComboBox _statusCombo = new();
         private readonly RoundedComboBox _assignedToCombo = new();
         private readonly RoundedTextBox _notesBox = new() { PlaceholderText = "Notes (text, optional)" };
@@ -20,6 +22,8 @@ namespace SNAP
         private readonly RoundedButton _cancelButton = new() { Text = "Cancel" };
 
         public string EquipmentName { get; private set; } = string.Empty;
+        public EquipmentCategory Category { get; private set; }
+        public decimal? AcquisitionCost { get; private set; }
         public EquipmentStatus Status { get; private set; }
         public int? AssignedToUserId { get; private set; }
         public string? Notes { get; private set; }
@@ -28,7 +32,7 @@ namespace SNAP
         {
             Text = existing is null ? "Add Equipment" : "Edit Equipment";
             Width = 480;
-            Height = 520;
+            Height = 620;
             StartPosition = FormStartPosition.CenterParent;
             BackColor = AppTheme.WhiteColor;
             FormBorderStyle = FormBorderStyle.FixedDialog;
@@ -37,6 +41,8 @@ namespace SNAP
 
             const int width = 400;
             _nameBox.Width = width;
+            _categoryCombo.Width = width;
+            _acquisitionCostBox.Width = width;
             _statusCombo.Width = width;
             _assignedToCombo.Width = width;
             _notesBox.Width = width;
@@ -45,6 +51,7 @@ namespace SNAP
             _cancelButton.Width = 190;
             _cancelButton.Height = 44;
 
+            foreach (var category in Enum.GetValues<EquipmentCategory>()) _categoryCombo.Items.Add(category);
             foreach (var status in Enum.GetValues<EquipmentStatus>()) _statusCombo.Items.Add(status);
 
             _assignedToCombo.Items.Add(new ComboItem(0, "Unassigned"));
@@ -52,6 +59,8 @@ namespace SNAP
 
             Controls.Add(AppTheme.BuildDialogBody(
                 AppTheme.BuildFieldGroup("Equipment Name", _nameBox),
+                AppTheme.BuildFieldGroup("Category", _categoryCombo),
+                AppTheme.BuildFieldGroup("Acquisition Cost (₱, optional)", _acquisitionCostBox),
                 AppTheme.BuildFieldGroup("Status", _statusCombo),
                 AppTheme.BuildFieldGroup("Assigned To", _assignedToCombo),
                 AppTheme.BuildFieldGroup("Notes", _notesBox),
@@ -60,6 +69,8 @@ namespace SNAP
             if (existing is not null)
             {
                 _nameBox.Text = existing.EquipmentName;
+                _categoryCombo.SelectedItem = existing.Category;
+                _acquisitionCostBox.Text = existing.AcquisitionCost is null ? string.Empty : existing.AcquisitionCost.Value.ToString("0.##");
                 _statusCombo.SelectedItem = existing.Status;
                 _notesBox.Text = existing.Notes ?? string.Empty;
 
@@ -75,6 +86,7 @@ namespace SNAP
             }
             else
             {
+                _categoryCombo.SelectedItem = EquipmentCategory.PhotographyGear;
                 _statusCombo.SelectedItem = EquipmentStatus.Available;
                 _assignedToCombo.SelectedIndex = 0;
             }
@@ -97,7 +109,21 @@ namespace SNAP
                 return;
             }
 
+            if (_categoryCombo.SelectedItem is not EquipmentCategory category)
+            {
+                MessageBox.Show("Select a category.", "Validation", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                return;
+            }
+
+            if (!string.IsNullOrWhiteSpace(_acquisitionCostBox.Text) && (!decimal.TryParse(_acquisitionCostBox.Text, out var cost) || cost < 0))
+            {
+                MessageBox.Show("Enter a valid, non-negative Acquisition Cost, or leave it blank.", "Validation", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                return;
+            }
+
             EquipmentName = _nameBox.Text.Trim();
+            Category = category;
+            AcquisitionCost = string.IsNullOrWhiteSpace(_acquisitionCostBox.Text) ? null : decimal.Parse(_acquisitionCostBox.Text);
             Status = status;
             AssignedToUserId = _assignedToCombo.SelectedItem is ComboItem item && item.Id > 0 ? item.Id : null;
             Notes = string.IsNullOrWhiteSpace(_notesBox.Text) ? null : _notesBox.Text.Trim();

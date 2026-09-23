@@ -197,6 +197,8 @@ namespace SNAP.infrastructure.Data
             {
                 entity.HasKey(x => x.EquipmentId);
                 entity.Property(x => x.EquipmentName).IsRequired().HasMaxLength(200);
+                entity.Property(x => x.Category).IsRequired().HasDefaultValue(SNAP.domain.enums.EquipmentCategory.PhotographyGear);
+                entity.Property(x => x.AcquisitionCost).HasColumnType("decimal(18,2)");
                 entity.Property(x => x.Status).IsRequired();
                 entity.Property(x => x.Notes).HasMaxLength(500);
                 entity.Property(x => x.IsActive).HasDefaultValue(true);
