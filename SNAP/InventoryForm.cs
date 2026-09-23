@@ -1,6 +1,7 @@
 using System.Windows.Forms;
 using SNAP.Controllers;
 using SNAP.Controls;
+using SNAP.domain.dtos;
 using SNAP.domain.entities;
 using SNAP.domain.enums;
 

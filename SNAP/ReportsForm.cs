@@ -5,6 +5,7 @@ using System.Windows.Forms;
 using Microsoft.EntityFrameworkCore;
 using SNAP.Controllers;
 using SNAP.Controls;
+using SNAP.domain.dtos;
 using SNAP.domain.entities;
 using SNAP.domain.enums;
 using SNAP.infrastructure.Data;

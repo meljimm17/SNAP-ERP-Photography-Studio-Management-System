@@ -248,6 +248,7 @@ namespace SNAP
             AppSession.CurrentRole = default;
             AppSession.CurrentTenantConnectionString = null;
             AppSession.CurrentUserId = 0;
+            AppSession.CurrentApiToken = null;
 
             TenantSyncService.CurrentActorUserId = null;
             TenantSyncService.CurrentActorName = "Unknown";

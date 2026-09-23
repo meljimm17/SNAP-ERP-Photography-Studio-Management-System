@@ -2,6 +2,12 @@
 <Project ToolsVersion="Current" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
   <PropertyGroup />
   <ItemGroup>
+    <Compile Update="AddOnsDialogForm.cs">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Update="AddOnsPanel.cs">
+      <SubType>Component</SubType>
+    </Compile>
     <Compile Update="BookingDialogForm.cs">
       <SubType>Form</SubType>
     </Compile>
@@ -65,6 +71,9 @@
     <Compile Update="MainDashboardForm.cs">
       <SubType>Form</SubType>
     </Compile>
+    <Compile Update="OwnerTransactionDialogForm.cs">
+      <SubType>Form</SubType>
+    </Compile>
     <Compile Update="PackageDialogForm.cs">
       <SubType>Form</SubType>
     </Compile>
@@ -77,13 +86,25 @@
     <Compile Update="PaymentForm.cs">
       <SubType>UserControl</SubType>
     </Compile>
+    <Compile Update="PurchaseOrderDialogForm.cs">
+      <SubType>Form</SubType>
+    </Compile>
     <Compile Update="ReceiptForm.cs">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Update="ReceivePurchaseOrderDialogForm.cs">
       <SubType>Form</SubType>
     </Compile>
     <Compile Update="ReportsForm.cs">
       <SubType>UserControl</SubType>
     </Compile>
+    <Compile Update="RestockDialogForm.cs">
+      <SubType>Form</SubType>
+    </Compile>
     <Compile Update="SalaryPaymentDialogForm.cs">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Update="SellDialogForm.cs">
       <SubType>Form</SubType>
     </Compile>
     <Compile Update="SupplierDialogForm.cs">

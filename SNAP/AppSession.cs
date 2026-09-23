@@ -24,8 +24,15 @@ namespace SNAP
         public static PlanTier CurrentPlanTier { get; set; }
 
         /// <summary>
-        /// Gets or sets the connection string for the current tenant's database.
+        /// Gets or sets the connection string for the current tenant's database. Still used by
+        /// modules not yet converted to call SNAP.api instead of talking to the database directly.
         /// </summary>
         public static string? CurrentTenantConnectionString { get; set; }
+
+        /// <summary>
+        /// The JWT issued by SNAP.api at login, attached as a bearer token to every ApiClient
+        /// request. Set by LoginForm, cleared on logout.
+        /// </summary>
+        public static string? CurrentApiToken { get; set; }
     }
 }

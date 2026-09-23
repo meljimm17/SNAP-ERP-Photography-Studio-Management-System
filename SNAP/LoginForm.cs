@@ -154,6 +154,27 @@ namespace SNAP
             var connectionStringForCatchUp = AppSession.CurrentTenantConnectionString ?? AppDbConfig.TenantErpConnectionString;
             Task.Run(() => TenantSyncService.TryPushPending(connectionStringForCatchUp));
 
+            // Modules already converted to call SNAP.api (currently just Inventory) need a bearer
+            // token - fetched separately from the in-process AuthenticationService check above,
+            // since the API does its own independent credential/tier check server-side rather than
+            // trusting this client's result. Best-effort: while the migration to an API-backed
+            // client is still in progress, every module *except* the converted ones works fully
+            // offline from the API's perspective, so a token fetch failure here only breaks the
+            // converted modules, not the whole login.
+            try
+            {
+                var loginResponse = ApiClient.Post<ApiCompanyLoginResponse>("/api/auth/company-login",
+                    new { companyCode, username, password });
+                AppSession.CurrentApiToken = loginResponse.Token;
+            }
+            catch (Exception ex)
+            {
+                AppSession.CurrentApiToken = null;
+                MessageBox.Show(
+                    $"Signed in, but couldn't reach the SNAP server for modules that need it (e.g. Inventory):\n\n{ex.Message}",
+                    "SNAP Server Unavailable", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+            }
+
             var dashboard = new MainDashboardForm();
             dashboard.Show();
             Hide();
