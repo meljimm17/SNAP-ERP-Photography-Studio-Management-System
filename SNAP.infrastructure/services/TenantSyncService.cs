@@ -289,7 +289,7 @@ namespace SNAP.infrastructure.services
                 Booking b => $"{b.PackageNameSnapshot} on {b.SessionDate:MMM d, yyyy}",
                 Payment p => $"₱{p.AmountPaid:N2} toward booking #{p.BookingId}",
                 Expense ex => $"₱{ex.Amount:N2} ({ex.Category})",
-                SalaryPayment sp => $"₱{sp.Amount:N2} salary payment",
+                SalaryPayment sp => $"₱{sp.NetAmount:N2} net salary payment",
                 ProductSale ps => $"{ps.Quantity:0.##} x item #{ps.InventoryId} (₱{ps.TotalAmount:N2})",
                 PurchaseOrder po => $"PO for supplier #{po.SupplierId} ({po.Status})",
                 PurchaseOrderLine pol => $"{pol.QuantityOrdered:0.##} x item #{pol.InventoryId} on PO #{pol.PurchaseOrderId}",

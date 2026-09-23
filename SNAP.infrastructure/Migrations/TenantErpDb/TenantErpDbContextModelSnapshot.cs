@@ -671,20 +671,26 @@ namespace SNAP.infrastructure.Migrations.TenantErpDb
 
                     SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("SalaryPaymentId"));
 
-                    b.Property<decimal>("Amount")
-                        .HasColumnType("decimal(18,2)");
-
                     b.Property<DateTime>("CreatedAt")
                         .HasColumnType("datetime2");
+
+                    b.Property<decimal>("GrossAmount")
+                        .HasColumnType("decimal(18,2)");
 
                     b.Property<bool>("IsDeleted")
                         .ValueGeneratedOnAdd()
                         .HasColumnType("bit")
                         .HasDefaultValue(false);
 
+                    b.Property<decimal>("NetAmount")
+                        .HasColumnType("decimal(18,2)");
+
                     b.Property<string>("Notes")
                         .HasMaxLength(500)
                         .HasColumnType("nvarchar(500)");
+
+                    b.Property<decimal>("PagIbigDeduction")
+                        .HasColumnType("decimal(18,2)");
 
                     b.Property<DateTime>("PayPeriodEnd")
                         .HasColumnType("datetime2");
@@ -695,8 +701,17 @@ namespace SNAP.infrastructure.Migrations.TenantErpDb
                     b.Property<DateTime>("PaymentDate")
                         .HasColumnType("datetime2");
 
+                    b.Property<decimal>("PhilHealthDeduction")
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<decimal>("SssDeduction")
+                        .HasColumnType("decimal(18,2)");
+
                     b.Property<int>("TenantUserId")
                         .HasColumnType("int");
+
+                    b.Property<decimal>("WithholdingTax")
+                        .HasColumnType("decimal(18,2)");
 
                     b.HasKey("SalaryPaymentId");
 
@@ -787,6 +802,9 @@ namespace SNAP.infrastructure.Migrations.TenantErpDb
                         .IsRequired()
                         .HasMaxLength(200)
                         .HasColumnType("nvarchar(200)");
+
+                    b.Property<decimal?>("MonthlySalary")
+                        .HasColumnType("decimal(18,2)");
 
                     b.Property<string>("PasswordHash")
                         .IsRequired()

@@ -122,6 +122,7 @@ namespace SNAP
                 PasswordHash = dialog.PasswordHash!,
                 Role = dialog.Role,
                 Status = dialog.Status,
+                MonthlySalary = dialog.MonthlySalary,
                 CreatedAt = DateTime.UtcNow
             });
             TenantSyncService.SaveAndSync(db);
@@ -152,6 +153,7 @@ namespace SNAP
             entity.Username = dialog.Username;
             entity.Role = dialog.Role;
             entity.Status = dialog.Status;
+            entity.MonthlySalary = dialog.MonthlySalary;
             if (dialog.PasswordHash is not null)
             {
                 entity.PasswordHash = dialog.PasswordHash;

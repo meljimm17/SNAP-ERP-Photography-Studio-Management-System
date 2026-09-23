@@ -22,6 +22,7 @@ namespace SNAP
         private readonly RoundedTextBox _passwordBox = new() { PlaceholderText = "Password (text)", UseSystemPasswordChar = true };
         private readonly RoundedComboBox _roleCombo = new();
         private readonly RoundedComboBox _statusCombo = new();
+        private readonly RoundedTextBox _monthlySalaryBox = new() { PlaceholderText = "Monthly Salary (decimal number, optional)" };
 
         private readonly RoundedButton _saveButton = new() { Text = "Save User" };
         private readonly RoundedButton _cancelButton = new() { Text = "Cancel" };
@@ -31,6 +32,7 @@ namespace SNAP
         public string? PasswordHash { get; private set; }
         public SystemRole Role { get; private set; }
         public UserStatus Status { get; private set; }
+        public decimal? MonthlySalary { get; private set; }
 
         public UserDialogForm(TenantUser? existing)
         {
@@ -38,7 +40,7 @@ namespace SNAP
 
             Text = existing is null ? "Add User" : $"Edit User - {existing.Username}";
             Width = 480;
-            Height = 560;
+            Height = 640;
             StartPosition = FormStartPosition.CenterParent;
             BackColor = AppTheme.WhiteColor;
             FormBorderStyle = FormBorderStyle.FixedDialog;
@@ -51,6 +53,7 @@ namespace SNAP
             _passwordBox.Width = width;
             _roleCombo.Width = width;
             _statusCombo.Width = width;
+            _monthlySalaryBox.Width = width;
             _saveButton.Width = 190;
             _saveButton.Height = 44;
             _cancelButton.Width = 190;
@@ -65,6 +68,7 @@ namespace SNAP
                 AppTheme.BuildFieldGroup(existing is null ? "Password" : "New Password (leave blank to keep current)", _passwordBox),
                 AppTheme.BuildFieldGroup("Role", _roleCombo),
                 AppTheme.BuildFieldGroup("Status", _statusCombo),
+                AppTheme.BuildFieldGroup("Monthly Salary (₱, optional - enables payroll)", _monthlySalaryBox),
                 AppTheme.BuildDialogButtonRow(_saveButton, _cancelButton)));
 
             if (existing is not null)
@@ -73,6 +77,7 @@ namespace SNAP
                 _usernameBox.Text = existing.Username;
                 _roleCombo.SelectedItem = existing.Role;
                 _statusCombo.SelectedItem = existing.Status;
+                _monthlySalaryBox.Text = existing.MonthlySalary is null ? string.Empty : existing.MonthlySalary.Value.ToString("0.##");
             }
             else
             {
@@ -110,10 +115,17 @@ namespace SNAP
                 return;
             }
 
+            if (!string.IsNullOrWhiteSpace(_monthlySalaryBox.Text) && (!decimal.TryParse(_monthlySalaryBox.Text, out var salary) || salary < 0))
+            {
+                MessageBox.Show("Enter a valid, non-negative Monthly Salary, or leave it blank.", "Validation", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                return;
+            }
+
             FullName = _fullNameBox.Text.Trim();
             Username = _usernameBox.Text.Trim();
             Role = role;
             Status = status;
+            MonthlySalary = string.IsNullOrWhiteSpace(_monthlySalaryBox.Text) ? null : decimal.Parse(_monthlySalaryBox.Text);
             PasswordHash = string.IsNullOrWhiteSpace(_passwordBox.Text)
                 ? null
                 : AuthenticationService.HashPassword(_passwordBox.Text);

@@ -115,7 +115,7 @@ namespace SNAP
                 BackColor = AppTheme.WhiteColor
             };
 
-            _addSalary.Text = "+ Add Payment";
+            _addSalary.Text = "+ Run Payroll";
             _editSalary.Text = "Edit";
             _deleteSalary.Text = "Delete";
             _addSalary.Width = 130;
@@ -201,7 +201,12 @@ namespace SNAP
                     {
                         SalaryPaymentId = x.SalaryPaymentId,
                         Employee = x.TenantUser != null ? x.TenantUser.FullName : $"User #{x.TenantUserId}",
-                        Amount = x.Amount,
+                        GrossAmount = x.GrossAmount,
+                        SssDeduction = x.SssDeduction,
+                        PhilHealthDeduction = x.PhilHealthDeduction,
+                        PagIbigDeduction = x.PagIbigDeduction,
+                        WithholdingTax = x.WithholdingTax,
+                        NetAmount = x.NetAmount,
                         PayPeriodStart = x.PayPeriodStart,
                         PayPeriodEnd = x.PayPeriodEnd,
                         PaymentDate = x.PaymentDate,
@@ -311,7 +316,12 @@ namespace SNAP
             db.SalaryPayments.Add(new SalaryPayment
             {
                 TenantUserId = dialog.TenantUserId,
-                Amount = dialog.Amount,
+                GrossAmount = dialog.GrossAmount,
+                SssDeduction = dialog.SssDeduction,
+                PhilHealthDeduction = dialog.PhilHealthDeduction,
+                PagIbigDeduction = dialog.PagIbigDeduction,
+                WithholdingTax = dialog.WithholdingTax,
+                NetAmount = dialog.NetAmount,
                 PayPeriodStart = dialog.PayPeriodStart,
                 PayPeriodEnd = dialog.PayPeriodEnd,
                 PaymentDate = dialog.PaymentDate,
@@ -341,7 +351,12 @@ namespace SNAP
             if (dialog.ShowDialog(this) != DialogResult.OK) return;
 
             entity.TenantUserId = dialog.TenantUserId;
-            entity.Amount = dialog.Amount;
+            entity.GrossAmount = dialog.GrossAmount;
+            entity.SssDeduction = dialog.SssDeduction;
+            entity.PhilHealthDeduction = dialog.PhilHealthDeduction;
+            entity.PagIbigDeduction = dialog.PagIbigDeduction;
+            entity.WithholdingTax = dialog.WithholdingTax;
+            entity.NetAmount = dialog.NetAmount;
             entity.PayPeriodStart = dialog.PayPeriodStart;
             entity.PayPeriodEnd = dialog.PayPeriodEnd;
             entity.PaymentDate = dialog.PaymentDate;
@@ -359,7 +374,7 @@ namespace SNAP
             if (selected is null) return;
 
             if (MessageBox.Show(
-                    $"Delete this salary payment of ₱{selected.Amount:N2} for {selected.Employee}? It will no longer appear in this list or count toward reports.",
+                    $"Delete this salary payment of ₱{selected.NetAmount:N2} for {selected.Employee}? It will no longer appear in this list or count toward reports.",
                     "Delete Salary Payment", MessageBoxButtons.YesNo, MessageBoxIcon.Question) != DialogResult.Yes)
             {
                 return;
@@ -391,7 +406,12 @@ namespace SNAP
         {
             public int SalaryPaymentId { get; set; }
             public string Employee { get; set; } = string.Empty;
-            public decimal Amount { get; set; }
+            public decimal GrossAmount { get; set; }
+            public decimal SssDeduction { get; set; }
+            public decimal PhilHealthDeduction { get; set; }
+            public decimal PagIbigDeduction { get; set; }
+            public decimal WithholdingTax { get; set; }
+            public decimal NetAmount { get; set; }
             public DateTime PayPeriodStart { get; set; }
             public DateTime PayPeriodEnd { get; set; }
             public DateTime PaymentDate { get; set; }

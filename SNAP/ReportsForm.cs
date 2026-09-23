@@ -319,7 +319,7 @@ namespace SNAP
                 {
                     var salaryPaidInRange = db.SalaryPayments
                         .Where(s => !s.IsDeleted && s.PaymentDate >= from && s.PaymentDate < toExclusive)
-                        .Sum(s => (decimal?)s.Amount) ?? 0m;
+                        .Sum(s => (decimal?)s.NetAmount) ?? 0m;
 
                     var expensesInRange = db.Expenses
                         .Where(e => !e.IsDeleted && e.ExpenseDate >= from && e.ExpenseDate < toExclusive)

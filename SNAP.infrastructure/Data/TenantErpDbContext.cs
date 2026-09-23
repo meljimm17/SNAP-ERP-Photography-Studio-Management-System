@@ -74,6 +74,7 @@ namespace SNAP.infrastructure.Data
                 entity.Property(x => x.PasswordHash).IsRequired().HasMaxLength(512);
                 entity.Property(x => x.Role).IsRequired();
                 entity.Property(x => x.Status).IsRequired().HasDefaultValue(SNAP.domain.enums.UserStatus.Active);
+                entity.Property(x => x.MonthlySalary).HasColumnType("decimal(18,2)");
                 entity.HasIndex(x => x.Username).IsUnique();
             });
 
@@ -233,7 +234,12 @@ namespace SNAP.infrastructure.Data
             modelBuilder.Entity<SalaryPayment>(entity =>
             {
                 entity.HasKey(x => x.SalaryPaymentId);
-                entity.Property(x => x.Amount).HasColumnType("decimal(18,2)");
+                entity.Property(x => x.GrossAmount).HasColumnType("decimal(18,2)");
+                entity.Property(x => x.SssDeduction).HasColumnType("decimal(18,2)");
+                entity.Property(x => x.PhilHealthDeduction).HasColumnType("decimal(18,2)");
+                entity.Property(x => x.PagIbigDeduction).HasColumnType("decimal(18,2)");
+                entity.Property(x => x.WithholdingTax).HasColumnType("decimal(18,2)");
+                entity.Property(x => x.NetAmount).HasColumnType("decimal(18,2)");
                 entity.Property(x => x.Notes).HasMaxLength(500);
                 entity.Property(x => x.IsDeleted).HasDefaultValue(false);
                 entity.HasOne(x => x.TenantUser)
