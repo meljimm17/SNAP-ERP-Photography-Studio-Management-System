@@ -25,6 +25,11 @@ namespace SNAP
         private readonly RoundedButton _editSalary = new() { IsPrimary = false };
         private readonly RoundedButton _deleteSalary = new() { IsPrimary = false };
 
+        private readonly DataGridView _ownerTransactionGrid = new();
+        private readonly RoundedButton _addOwnerTransaction = new();
+        private readonly RoundedButton _editOwnerTransaction = new() { IsPrimary = false };
+        private readonly RoundedButton _deleteOwnerTransaction = new() { IsPrimary = false };
+
         public FinanceForm(AccessLevel accessLevel = AccessLevel.Full)
         {
             Dock = DockStyle.Fill;
@@ -36,12 +41,14 @@ namespace SNAP
             AppTheme.StyleTabControl(tabs);
             tabs.TabPages.Add(BuildExpenseTab(canEdit));
             tabs.TabPages.Add(BuildSalaryTab(canEdit));
+            tabs.TabPages.Add(BuildOwnerTransactionTab(canEdit));
 
-            var header = AppTheme.CreatePageHeader("Finance", "Manage business expenses and salary payments.");
+            var header = AppTheme.CreatePageHeader("Finance", "Manage business expenses, salary payments, and owner transactions.");
             Controls.Add(AppTheme.BuildPage(header, null, AppTheme.WrapContent(tabs)));
 
             LoadExpenses();
             LoadSalaryPayments();
+            LoadOwnerTransactions();
         }
 
         private TabPage BuildExpenseTab(bool canEdit)
@@ -144,6 +151,151 @@ namespace SNAP
             _deleteSalary.Enabled = canEdit;
 
             return page;
+        }
+
+        private TabPage BuildOwnerTransactionTab(bool canEdit)
+        {
+            var page = new TabPage("Owner Transactions") { BackColor = AppTheme.WhiteColor };
+
+            AppTheme.StyleGrid(_ownerTransactionGrid);
+            _ownerTransactionGrid.Dock = DockStyle.Fill;
+            _ownerTransactionGrid.ReadOnly = true;
+            _ownerTransactionGrid.AutoGenerateColumns = true;
+            _ownerTransactionGrid.SelectionMode = DataGridViewSelectionMode.FullRowSelect;
+            _ownerTransactionGrid.MultiSelect = false;
+            AppTheme.StyleStatusColumn(_ownerTransactionGrid, "Type", value => (value?.ToString() ?? string.Empty) switch
+            {
+                "Contribution" => ("Contribution", StatusKind.Success),
+                "Withdrawal" => ("Withdrawal", StatusKind.Warning),
+                var other => (other, StatusKind.Neutral)
+            });
+
+            var toolbar = new FlowLayoutPanel
+            {
+                Dock = DockStyle.Fill,
+                Padding = new Padding(0, 12, 0, 12),
+                FlowDirection = FlowDirection.LeftToRight,
+                BackColor = AppTheme.WhiteColor
+            };
+
+            _addOwnerTransaction.Text = "+ Add Transaction";
+            _editOwnerTransaction.Text = "Edit";
+            _deleteOwnerTransaction.Text = "Delete";
+            _addOwnerTransaction.Width = 150;
+            _editOwnerTransaction.Width = 90;
+            _deleteOwnerTransaction.Width = 90;
+            _addOwnerTransaction.Margin = new Padding(0, 0, 8, 0);
+            _editOwnerTransaction.Margin = new Padding(0, 0, 8, 0);
+
+            _addOwnerTransaction.Click += (_, _) => AddOwnerTransaction();
+            _editOwnerTransaction.Click += (_, _) => EditOwnerTransaction();
+            _deleteOwnerTransaction.Click += (_, _) => DeleteOwnerTransaction();
+
+            toolbar.Controls.Add(_addOwnerTransaction);
+            toolbar.Controls.Add(_editOwnerTransaction);
+            toolbar.Controls.Add(_deleteOwnerTransaction);
+
+            var layout = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 1, RowCount = 2 };
+            layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 56));
+            layout.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
+            layout.Controls.Add(toolbar, 0, 0);
+            layout.Controls.Add(_ownerTransactionGrid, 0, 1);
+            page.Controls.Add(layout);
+
+            _addOwnerTransaction.Enabled = canEdit;
+            _editOwnerTransaction.Enabled = canEdit;
+            _deleteOwnerTransaction.Enabled = canEdit;
+
+            return page;
+        }
+
+        private void LoadOwnerTransactions()
+        {
+            try
+            {
+                using var db = CreateDbContext();
+                _ownerTransactionGrid.DataSource = db.OwnerTransactions
+                    .OrderByDescending(x => x.CreatedAt)
+                    .Select(x => new OwnerTransactionRow
+                    {
+                        OwnerTransactionId = x.OwnerTransactionId,
+                        Type = x.Type.ToString(),
+                        Amount = x.Amount,
+                        TransactionDate = x.TransactionDate,
+                        Notes = x.Notes ?? string.Empty
+                    })
+                    .ToList();
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show($"Database Connection Error\n\n{ex.Message}\n\nMake sure the databases are created and configured.", "Database Error", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+            }
+        }
+
+        private void AddOwnerTransaction()
+        {
+            using var dialog = new OwnerTransactionDialogForm(existing: null);
+            if (dialog.ShowDialog(this) != DialogResult.OK) return;
+
+            using var db = CreateDbContext();
+            db.OwnerTransactions.Add(new OwnerTransaction
+            {
+                Type = dialog.Type,
+                Amount = dialog.Amount,
+                TransactionDate = dialog.TransactionDate,
+                Notes = dialog.Notes,
+                CreatedAt = DateTime.UtcNow
+            });
+            TenantSyncService.SaveAndSync(db);
+            LoadOwnerTransactions();
+
+            MessageBox.Show("Owner transaction recorded successfully.", "Success", MessageBoxButtons.OK, MessageBoxIcon.Information);
+        }
+
+        private void EditOwnerTransaction()
+        {
+            if (_ownerTransactionGrid.SelectedRows.Count == 0) return;
+
+            var selected = (OwnerTransactionRow)_ownerTransactionGrid.SelectedRows[0].DataBoundItem;
+            if (selected is null) return;
+
+            using var db = CreateDbContext();
+            var entity = db.OwnerTransactions.Find(selected.OwnerTransactionId);
+            if (entity is null) return;
+
+            using var dialog = new OwnerTransactionDialogForm(entity);
+            if (dialog.ShowDialog(this) != DialogResult.OK) return;
+
+            entity.Type = dialog.Type;
+            entity.Amount = dialog.Amount;
+            entity.TransactionDate = dialog.TransactionDate;
+            entity.Notes = dialog.Notes;
+
+            TenantSyncService.SaveAndSync(db);
+            LoadOwnerTransactions();
+        }
+
+        private void DeleteOwnerTransaction()
+        {
+            if (_ownerTransactionGrid.SelectedRows.Count == 0) return;
+
+            var selected = (OwnerTransactionRow)_ownerTransactionGrid.SelectedRows[0].DataBoundItem;
+            if (selected is null) return;
+
+            if (MessageBox.Show(
+                    $"Delete this {selected.Type.ToLowerInvariant()} of ₱{selected.Amount:N2}? This cannot be undone.",
+                    "Delete Owner Transaction", MessageBoxButtons.YesNo, MessageBoxIcon.Question) != DialogResult.Yes)
+            {
+                return;
+            }
+
+            using var db = CreateDbContext();
+            var entity = db.OwnerTransactions.Find(selected.OwnerTransactionId);
+            if (entity is null) return;
+
+            db.OwnerTransactions.Remove(entity);
+            TenantSyncService.SaveAndSync(db);
+            LoadOwnerTransactions();
         }
 
         private static TenantErpDbContext CreateDbContext()
@@ -415,6 +567,15 @@ namespace SNAP
             public DateTime PayPeriodStart { get; set; }
             public DateTime PayPeriodEnd { get; set; }
             public DateTime PaymentDate { get; set; }
+            public string Notes { get; set; } = string.Empty;
+        }
+
+        private sealed class OwnerTransactionRow
+        {
+            public int OwnerTransactionId { get; set; }
+            public string Type { get; set; } = string.Empty;
+            public decimal Amount { get; set; }
+            public DateTime TransactionDate { get; set; }
             public string Notes { get; set; } = string.Empty;
         }
     }
