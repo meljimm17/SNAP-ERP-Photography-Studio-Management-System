@@ -1,6 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.ChangeTracking;
 using SNAP.domain.entities;
+using SNAP.domain.enums;
 using SNAP.infrastructure.Data;
 
 namespace SNAP.infrastructure.services
@@ -15,6 +16,15 @@ namespace SNAP.infrastructure.services
     public static class TenantSyncService
     {
         private const string RemoteConnectionStringEnvVar = "SNAP_TENANTERP_REMOTE_CONNECTIONSTRING";
+
+        /// <summary>
+        /// The signed-in actor for audit logging, set once at login (and cleared at logout) by the
+        /// UI project. SNAP.infrastructure cannot reference SNAP's AppSession directly (SNAP
+        /// references SNAP.infrastructure, not the other way around), so this is the
+        /// infrastructure-side mirror of AppSession.CurrentUserId/CurrentDisplayName.
+        /// </summary>
+        public static int? CurrentActorUserId { get; set; }
+        public static string CurrentActorName { get; set; } = "Unknown";
 
         private static readonly Dictionary<string, Type> SyncableEntityTypes = new()
         {
@@ -31,15 +41,68 @@ namespace SNAP.infrastructure.services
         };
 
         /// <summary>
+        /// Entity types that get a row written to AuditLog on Create/Update/Delete. Kept as its own
+        /// set (distinct from SyncableEntityTypes) since AuditLog itself must never be audited or
+        /// synced, and not every syncable entity necessarily needs to stay audited forever.
+        /// </summary>
+        private static readonly HashSet<string> AuditableEntityTypes = new()
+        {
+            nameof(Equipment),
+            nameof(Inventory),
+            nameof(Supplier),
+            nameof(Payment),
+            nameof(Expense),
+            nameof(SalaryPayment),
+            nameof(TenantUser),
+            nameof(Booking),
+            nameof(Customer),
+        };
+
+        /// <summary>
         /// Drop-in replacement for a bare db.SaveChanges() call on a TenantErpDbContext. Saves
         /// locally exactly as before, then records the changed rows for background sync.
+        /// summarySelector optionally supplies a richer, action-specific AuditLog.Summary for a
+        /// given changed entry (e.g. "Restocked Canon batteries: +20 units from Manila Photo
+        /// Supplies") - entries it doesn't cover fall back to a generic auto-generated summary.
         /// </summary>
-        public static void SaveAndSync(TenantErpDbContext db)
+        public static void SaveAndSync(TenantErpDbContext db, Func<EntityEntry, string?>? summarySelector = null)
         {
             var changedEntries = db.ChangeTracker.Entries()
                 .Where(e => e.State is EntityState.Added or EntityState.Modified)
                 .Where(e => SyncableEntityTypes.ContainsKey(e.Metadata.ClrType.Name))
                 .ToList();
+
+            var auditEntries = db.ChangeTracker.Entries()
+                .Where(e => e.State is EntityState.Added or EntityState.Modified or EntityState.Deleted)
+                .Where(e => AuditableEntityTypes.Contains(e.Metadata.ClrType.Name))
+                .ToList();
+
+            foreach (var entry in auditEntries)
+            {
+                var entityId = GetPrimaryKeyValue(entry);
+                if (entityId is null)
+                {
+                    continue;
+                }
+
+                var action = entry.State switch
+                {
+                    EntityState.Added => AuditAction.Create,
+                    EntityState.Deleted => AuditAction.Delete,
+                    _ => AuditAction.Update
+                };
+
+                db.AuditLogs.Add(new AuditLog
+                {
+                    TenantUserId = CurrentActorUserId > 0 ? CurrentActorUserId : null,
+                    ActorName = CurrentActorName,
+                    EntityName = entry.Metadata.ClrType.Name,
+                    EntityId = entityId.Value,
+                    Action = action,
+                    Summary = summarySelector?.Invoke(entry) ?? BuildDefaultSummary(entry, action, entityId.Value),
+                    Timestamp = DateTime.UtcNow
+                });
+            }
 
             db.SaveChanges();
 
@@ -192,6 +255,37 @@ namespace SNAP.infrastructure.services
             }
 
             return clone;
+        }
+
+        /// <summary>
+        /// Generic "Created/Updated/Deleted {Entity}: {label}" summary for an audited entry that
+        /// didn't get a richer, action-specific summary from the caller's summarySelector.
+        /// </summary>
+        private static string BuildDefaultSummary(EntityEntry entry, AuditAction action, int entityId)
+        {
+            var entityName = entry.Metadata.ClrType.Name;
+            var verb = action switch
+            {
+                AuditAction.Create => "Created",
+                AuditAction.Delete => "Deleted",
+                _ => "Updated"
+            };
+
+            var label = entry.Entity switch
+            {
+                Equipment e => e.EquipmentName,
+                Inventory i => i.ItemName,
+                Supplier s => s.SupplierName,
+                TenantUser u => u.FullName,
+                Customer c => c.FullName,
+                Booking b => $"{b.PackageNameSnapshot} on {b.SessionDate:MMM d, yyyy}",
+                Payment p => $"₱{p.AmountPaid:N2} toward booking #{p.BookingId}",
+                Expense ex => $"₱{ex.Amount:N2} ({ex.Category})",
+                SalaryPayment sp => $"₱{sp.Amount:N2} salary payment",
+                _ => null
+            };
+
+            return label is null ? $"{verb} {entityName} #{entityId}" : $"{verb} {entityName}: {label}";
         }
 
         private static int? GetPrimaryKeyValue(EntityEntry entry)

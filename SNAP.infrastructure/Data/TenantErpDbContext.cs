@@ -26,6 +26,7 @@ namespace SNAP.infrastructure.Data
         public DbSet<Equipment> Equipment => Set<Equipment>();
         public DbSet<Expense> Expenses => Set<Expense>();
         public DbSet<SalaryPayment> SalaryPayments => Set<SalaryPayment>();
+        public DbSet<AuditLog> AuditLogs => Set<AuditLog>();
 
         protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder)
         {
@@ -201,6 +202,20 @@ namespace SNAP.infrastructure.Data
                     .WithMany()
                     .HasForeignKey(x => x.TenantUserId)
                     .OnDelete(DeleteBehavior.Restrict);
+            });
+
+            modelBuilder.Entity<AuditLog>(entity =>
+            {
+                entity.HasKey(x => x.AuditLogId);
+                entity.Property(x => x.ActorName).IsRequired().HasMaxLength(200);
+                entity.Property(x => x.EntityName).IsRequired().HasMaxLength(100);
+                entity.Property(x => x.Summary).HasMaxLength(500);
+                entity.HasIndex(x => x.Timestamp);
+                entity.HasIndex(x => x.EntityName);
+                entity.HasOne(x => x.TenantUser)
+                    .WithMany()
+                    .HasForeignKey(x => x.TenantUserId)
+                    .OnDelete(DeleteBehavior.SetNull);
             });
         }
     }

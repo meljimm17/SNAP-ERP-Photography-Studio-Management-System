@@ -58,11 +58,11 @@ namespace SNAP.infrastructure.services
         /// (Staff/Photographer accounts stay in TenantUsers untouched - this is a login-time check,
         /// not a data change, so nothing needs to be migrated if the company later upgrades tiers).
         /// </summary>
-        public static (bool Success, string Message, SystemRole Role, string DisplayName, int CompanyId, string? TenantConnectionString, PlanTier PlanTier) TryAuthenticateCompany(string companyCode, string username, string password)
+        public static (bool Success, string Message, SystemRole Role, string DisplayName, int CompanyId, string? TenantConnectionString, PlanTier PlanTier, int UserId) TryAuthenticateCompany(string companyCode, string username, string password)
         {
             if (string.IsNullOrWhiteSpace(companyCode) || string.IsNullOrWhiteSpace(username) || string.IsNullOrWhiteSpace(password))
             {
-                return (false, "Company code, username, and password are required.", SystemRole.Admin, string.Empty, 0, null, PlanTier.Micro);
+                return (false, "Company code, username, and password are required.", SystemRole.Admin, string.Empty, 0, null, PlanTier.Micro, 0);
             }
 
             var trimmedCompanyCode = companyCode.Trim();
@@ -72,7 +72,7 @@ namespace SNAP.infrastructure.services
             if (string.Equals(trimmedCompanyCode, "demo", StringComparison.OrdinalIgnoreCase) &&
                 TryDemoTenantLogin(username, password, out var demoUser))
             {
-                return (true, "Welcome.", demoUser.Role, demoUser.FullName, 0, null, PlanTier.Micro);
+                return (true, "Welcome.", demoUser.Role, demoUser.FullName, 0, null, PlanTier.Micro, demoUser.UserId);
             }
 
             try
@@ -88,7 +88,7 @@ namespace SNAP.infrastructure.services
 
                 if (company is null)
                 {
-                    return (false, "Company code not found.", SystemRole.Admin, string.Empty, 0, null, PlanTier.Micro);
+                    return (false, "Company code not found.", SystemRole.Admin, string.Empty, 0, null, PlanTier.Micro, 0);
                 }
 
                 var companyDb = masterDb.CompanyDatabases
@@ -97,7 +97,7 @@ namespace SNAP.infrastructure.services
 
                 if (companyDb is null)
                 {
-                    return (false, "Company code not found.", SystemRole.Admin, string.Empty, 0, null, PlanTier.Micro);
+                    return (false, "Company code not found.", SystemRole.Admin, string.Empty, 0, null, PlanTier.Micro, 0);
                 }
 
                 var tenantConnectionString = ConnectionStrings.BuildTenantConnectionString(companyDb.ServerName, companyDb.DatabaseName, companyDb.CredentialKey);
@@ -112,19 +112,19 @@ namespace SNAP.infrastructure.services
 
                 if (user is null || !VerifyPassword(password, user.PasswordHash))
                 {
-                    return (false, "Invalid username or password.", SystemRole.Admin, string.Empty, company.CompanyId, null, company.PlanTier);
+                    return (false, "Invalid username or password.", SystemRole.Admin, string.Empty, company.CompanyId, null, company.PlanTier, 0);
                 }
 
                 if (company.PlanTier == PlanTier.Micro && user.Role != SystemRole.Admin)
                 {
-                    return (false, "This account type isn't available on your current plan.", SystemRole.Admin, string.Empty, company.CompanyId, null, company.PlanTier);
+                    return (false, "This account type isn't available on your current plan.", SystemRole.Admin, string.Empty, company.CompanyId, null, company.PlanTier, 0);
                 }
 
-                return (true, "Welcome.", user.Role, user.FullName, company.CompanyId, tenantConnectionString, company.PlanTier);
+                return (true, "Welcome.", user.Role, user.FullName, company.CompanyId, tenantConnectionString, company.PlanTier, user.UserId);
             }
             catch (Exception ex)
             {
-                return (false, $"Unable to connect to the database: {ex.Message}", SystemRole.Admin, string.Empty, 0, null, PlanTier.Micro);
+                return (false, $"Unable to connect to the database: {ex.Message}", SystemRole.Admin, string.Empty, 0, null, PlanTier.Micro, 0);
             }
         }
 

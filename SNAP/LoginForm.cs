@@ -146,6 +146,10 @@ namespace SNAP
             AppSession.CurrentDisplayName = result.DisplayName;
             AppSession.CurrentTenantConnectionString = result.TenantConnectionString;
             AppSession.CurrentPlanTier = result.PlanTier;
+            AppSession.CurrentUserId = result.UserId;
+
+            TenantSyncService.CurrentActorUserId = result.UserId > 0 ? result.UserId : null;
+            TenantSyncService.CurrentActorName = result.DisplayName;
 
             var connectionStringForCatchUp = AppSession.CurrentTenantConnectionString ?? AppDbConfig.TenantErpConnectionString;
             Task.Run(() => TenantSyncService.TryPushPending(connectionStringForCatchUp));

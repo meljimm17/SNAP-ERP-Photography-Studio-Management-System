@@ -2,6 +2,8 @@ using System.Windows.Forms;
 using Microsoft.EntityFrameworkCore;
 using SNAP.Controls;
 using SNAP.domain.entities;
+using SNAP.domain.enums;
+using SNAP.infrastructure.config;
 using SNAP.infrastructure.Data;
 
 namespace SNAP
@@ -106,15 +108,18 @@ namespace SNAP
             db.Companies.Add(company);
             db.SaveChanges();
 
-            db.CompanyDatabases.Add(new CompanyDatabase
+            var companyDatabase = new CompanyDatabase
             {
                 CompanyId = company.CompanyId,
                 ServerName = dialog.ServerName,
                 DatabaseName = dialog.DatabaseName,
                 CredentialKey = dialog.CredentialKey,
                 IsActive = true
-            });
+            };
+            db.CompanyDatabases.Add(companyDatabase);
             db.SaveChanges();
+
+            WriteCompanyAuditLog(company, companyDatabase, AuditAction.Create, $"Created company: {company.CompanyName} ({company.PlanTier} tier)");
 
             LoadData();
 
@@ -141,6 +146,7 @@ namespace SNAP
                 return;
             }
 
+            var previousTier = entity.PlanTier;
             entity.CompanyCode = dialog.CompanyCode;
             entity.CompanyName = dialog.CompanyDisplayName;
             entity.PlanTier = dialog.PlanTier;
@@ -153,17 +159,24 @@ namespace SNAP
             }
             else
             {
-                db.CompanyDatabases.Add(new CompanyDatabase
+                companyDatabase = new CompanyDatabase
                 {
                     CompanyId = entity.CompanyId,
                     ServerName = dialog.ServerName,
                     DatabaseName = dialog.DatabaseName,
                     CredentialKey = dialog.CredentialKey,
                     IsActive = true
-                });
+                };
+                db.CompanyDatabases.Add(companyDatabase);
             }
 
             db.SaveChanges();
+
+            var summary = previousTier == entity.PlanTier
+                ? $"Updated company: {entity.CompanyName}"
+                : $"Updated company: {entity.CompanyName} (plan tier changed: {previousTier} -> {entity.PlanTier})";
+            WriteCompanyAuditLog(entity, companyDatabase, AuditAction.Update, summary);
+
             LoadData();
         }
 
@@ -178,7 +191,55 @@ namespace SNAP
 
             entity.IsActive = !entity.IsActive;
             db.SaveChanges();
+
+            var companyDatabase = db.CompanyDatabases.FirstOrDefault(x => x.CompanyId == entity.CompanyId && x.IsActive);
+            WriteCompanyAuditLog(entity, companyDatabase, AuditAction.Update, $"{(entity.IsActive ? "Activated" : "Deactivated")} company: {entity.CompanyName}");
+
             LoadData();
+        }
+
+        /// <summary>
+        /// Company lives in the Master database, but AuditLog is a per-tenant table (see
+        /// AuditLog's design note) - so a Company change made here by a SuperAdmin who isn't
+        /// scoped to any one tenant gets written directly into that company's own
+        /// TenantErpDbContext instead of going through TenantSyncService.SaveAndSync. Best-effort:
+        /// the Company change itself has already been saved to the Master database by the time
+        /// this runs, so a tenant database that's unreachable (e.g. brand new, not yet
+        /// provisioned) just means the audit entry is skipped rather than blocking the workflow.
+        /// </summary>
+        private static void WriteCompanyAuditLog(Company company, CompanyDatabase? companyDatabase, AuditAction action, string summary)
+        {
+            if (companyDatabase is null || string.IsNullOrWhiteSpace(companyDatabase.ServerName) || string.IsNullOrWhiteSpace(companyDatabase.DatabaseName))
+            {
+                return;
+            }
+
+            try
+            {
+                var tenantConnectionString = ConnectionStrings.BuildTenantConnectionString(companyDatabase.ServerName, companyDatabase.DatabaseName, companyDatabase.CredentialKey);
+                var tenantOptions = new DbContextOptionsBuilder<TenantErpDbContext>()
+                    .UseSqlServer(tenantConnectionString)
+                    .Options;
+
+                using var tenantDb = new TenantErpDbContext(tenantOptions);
+                tenantDb.AuditLogs.Add(new AuditLog
+                {
+                    TenantUserId = null,
+                    ActorName = AppSession.CurrentDisplayName ?? AppSession.CurrentUsername ?? "System Admin",
+                    EntityName = nameof(Company),
+                    EntityId = company.CompanyId,
+                    Action = action,
+                    Summary = summary,
+                    Timestamp = DateTime.UtcNow
+                });
+                tenantDb.SaveChanges();
+            }
+            catch
+            {
+                // Tenant database unreachable or not yet provisioned - the Company change itself
+                // already succeeded against the Master database, so this is skipped rather than
+                // surfaced as an error.
+            }
         }
 
         private sealed class CompanyRow

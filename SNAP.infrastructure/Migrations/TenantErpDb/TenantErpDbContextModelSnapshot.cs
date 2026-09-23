@@ -22,6 +22,51 @@ namespace SNAP.infrastructure.Migrations.TenantErpDb
 
             SqlServerModelBuilderExtensions.UseIdentityColumns(modelBuilder);
 
+            modelBuilder.Entity("SNAP.domain.entities.AuditLog", b =>
+                {
+                    b.Property<int>("AuditLogId")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("AuditLogId"));
+
+                    b.Property<int>("Action")
+                        .HasColumnType("int");
+
+                    b.Property<string>("ActorName")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<int>("EntityId")
+                        .HasColumnType("int");
+
+                    b.Property<string>("EntityName")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<string>("Summary")
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
+                    b.Property<int?>("TenantUserId")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime>("Timestamp")
+                        .HasColumnType("datetime2");
+
+                    b.HasKey("AuditLogId");
+
+                    b.HasIndex("EntityName");
+
+                    b.HasIndex("TenantUserId");
+
+                    b.HasIndex("Timestamp");
+
+                    b.ToTable("AuditLogs");
+                });
+
             modelBuilder.Entity("SNAP.domain.entities.Booking", b =>
                 {
                     b.Property<int>("BookingId")
@@ -571,6 +616,16 @@ namespace SNAP.infrastructure.Migrations.TenantErpDb
                         .IsUnique();
 
                     b.ToTable("TenantUsers");
+                });
+
+            modelBuilder.Entity("SNAP.domain.entities.AuditLog", b =>
+                {
+                    b.HasOne("SNAP.domain.entities.TenantUser", "TenantUser")
+                        .WithMany()
+                        .HasForeignKey("TenantUserId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
+                    b.Navigation("TenantUser");
                 });
 
             modelBuilder.Entity("SNAP.domain.entities.Booking", b =>
