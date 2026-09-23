@@ -17,6 +17,7 @@ namespace SNAP
     {
         private const string ActionColumnName = "Action";
         private const string DeleteColumnName = "DeleteAction";
+        private const string AddOnsActionColumnName = "AddOnsAction";
 
         private readonly DataGridView _grid = new();
         private readonly AccessLevel _accessLevel;
@@ -62,7 +63,17 @@ namespace SNAP
                 DefaultCellStyle = new DataGridViewCellStyle { Format = "N2", Alignment = DataGridViewContentAlignment.MiddleRight }
             });
             _grid.Columns.Add(new DataGridViewTextBoxColumn { Name = "Status", DataPropertyName = "Status", HeaderText = "Status", FillWeight = 90 });
+            _grid.Columns.Add(new DataGridViewTextBoxColumn { Name = "AddOnsSummary", DataPropertyName = "AddOnsSummary", HeaderText = "Add-ons", FillWeight = 100 });
 
+            _grid.Columns.Add(new DataGridViewButtonColumn
+            {
+                Name = AddOnsActionColumnName,
+                HeaderText = "",
+                FillWeight = 80,
+                UseColumnTextForButtonValue = true,
+                FlatStyle = FlatStyle.Flat,
+                Text = "Add-ons"
+            });
             _grid.Columns.Add(new DataGridViewButtonColumn
             {
                 Name = ActionColumnName,
@@ -117,6 +128,10 @@ namespace SNAP
                 e.Value = row.HasPayment ? "Delete" : string.Empty;
                 _grid.Rows[e.RowIndex].Cells[e.ColumnIndex].ReadOnly = !canEdit || !row.HasPayment;
             }
+            else if (columnName == AddOnsActionColumnName)
+            {
+                _grid.Rows[e.RowIndex].Cells[e.ColumnIndex].ReadOnly = !canEdit;
+            }
         }
 
         private void Grid_CellContentClick(object? sender, DataGridViewCellEventArgs e)
@@ -133,6 +148,27 @@ namespace SNAP
             {
                 DeletePayments(row);
             }
+            else if (columnName == AddOnsActionColumnName)
+            {
+                OpenAddOns(row);
+            }
+        }
+
+        private void OpenAddOns(BookingPaymentRow row)
+        {
+            using var db = CreateDbContext();
+            var forSaleItems = db.InventoryItems.Where(x => x.IsActive && x.IsForSale).OrderBy(x => x.ItemName).ToList();
+            var existing = db.ProductSales.Where(p => p.BookingId == row.BookingId && !p.IsDeleted).ToList();
+
+            using var dialog = new AddOnsDialogForm(forSaleItems, existing);
+            if (dialog.ShowDialog(this) != DialogResult.OK) return;
+
+            var booking = db.Bookings.Find(row.BookingId);
+            if (booking is null) return;
+
+            AddOnsService.ApplyAddOns(db, row.BookingId, booking.CustomerId, dialog.Selections);
+            TenantSyncService.SaveAndSync(db);
+            LoadData();
         }
 
         private void LoadData()
@@ -152,10 +188,16 @@ namespace SNAP
                     .GroupBy(p => p.BookingId)
                     .ToDictionary(g => g.Key, g => g.Sum(p => p.AmountPaid));
 
+                var addOnsByBooking = db.ProductSales
+                    .Where(p => !p.IsDeleted && p.BookingId != null)
+                    .GroupBy(p => p.BookingId!.Value)
+                    .ToDictionary(g => g.Key, g => new { Total = g.Sum(p => p.TotalAmount), Count = g.Sum(p => p.Quantity) });
+
                 _grid.DataSource = bookings.Select(b =>
                 {
                     var amountPaid = paidTotals.GetValueOrDefault(b.BookingId);
                     var amountDue = b.PriceSnapshot - amountPaid;
+                    var addOns = addOnsByBooking.GetValueOrDefault(b.BookingId);
                     return new BookingPaymentRow
                     {
                         BookingId = b.BookingId,
@@ -165,7 +207,8 @@ namespace SNAP
                         PriceSnapshot = b.PriceSnapshot,
                         AmountPaid = amountPaid,
                         HasPayment = amountPaid > 0,
-                        Status = amountPaid <= 0 ? "Unpaid" : amountDue > 0 ? "Partially Paid" : "Paid"
+                        Status = amountPaid <= 0 ? "Unpaid" : amountDue > 0 ? "Partially Paid" : "Paid",
+                        AddOnsSummary = addOns is null ? "—" : $"₱{addOns.Total:N0} · {addOns.Count:0.##} item(s)"
                     };
                 }).ToList();
             }
@@ -249,6 +292,7 @@ namespace SNAP
             public decimal AmountPaid { get; set; }
             public bool HasPayment { get; set; }
             public string Status { get; set; } = string.Empty;
+            public string AddOnsSummary { get; set; } = string.Empty;
         }
     }
 }

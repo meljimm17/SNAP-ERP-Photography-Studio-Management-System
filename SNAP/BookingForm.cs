@@ -159,6 +159,7 @@ namespace SNAP
             if (entity is null) return;
 
             entity.Status = BookingStatus.Cancelled;
+            AddOnsService.ReverseAllAddOns(db, entity.BookingId);
             TenantSyncService.SaveAndSync(db);
             LoadData();
         }

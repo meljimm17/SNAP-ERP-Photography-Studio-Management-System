@@ -45,6 +45,10 @@ namespace SNAP
         private readonly RoundedComboBox _statusCombo = new();
         private Control _statusGroup = null!;
 
+        private readonly CheckBox _addOnsToggle = new() { Text = "Add extra items to this booking?", ForeColor = AppTheme.TextPrimaryColor, Font = AppTheme.BodyFont, AutoSize = false, UseMnemonic = false };
+        private readonly AddOnsPanel _addOnsPanel;
+        private readonly List<ProductSale> _existingAddOns;
+
         private readonly RoundedButton _confirmButton = new() { Text = "Confirm Booking" };
         private readonly RoundedButton _cancelButton = new() { Text = "Cancel" };
 
@@ -56,6 +60,12 @@ namespace SNAP
             _allCustomers = _db.Customers.Where(x => x.IsActive).OrderBy(x => x.FullName).ToList();
             _allPackages = _db.PhotographyPackages.Where(x => x.IsActive).OrderBy(x => x.PackageName).ToList();
             _allPhotographers = _db.TenantUsers.Where(x => x.Status == UserStatus.Active && x.Role == SystemRole.Photographer).OrderBy(x => x.FullName).ToList();
+
+            var forSaleItems = _db.InventoryItems.Where(x => x.IsActive && x.IsForSale).OrderBy(x => x.ItemName).ToList();
+            _existingAddOns = existingBooking is null
+                ? new List<ProductSale>()
+                : _db.ProductSales.Where(p => p.BookingId == existingBooking.BookingId && !p.IsDeleted).ToList();
+            _addOnsPanel = new AddOnsPanel(forSaleItems, 500) { Visible = false, Margin = new Padding(0, 0, 0, 14) };
 
             Text = existingBooking is null ? "New Booking" : "Reschedule / Update Booking";
             Width = 580;
@@ -81,6 +91,12 @@ namespace SNAP
             else
             {
                 PopulateForEdit(existingBooking);
+            }
+
+            if (_existingAddOns.Count > 0)
+            {
+                _addOnsPanel.LoadExisting(_existingAddOns);
+                _addOnsToggle.Checked = true;
             }
 
             RebuildTimeSlots();
@@ -114,6 +130,9 @@ namespace SNAP
             }
 
             _packageCombo.Width = width;
+            _addOnsToggle.Width = width;
+            _addOnsToggle.Height = 24;
+            _addOnsToggle.Margin = new Padding(0, 0, 0, 14);
             _datePicker.Width = width;
             _photographerCombo.Width = width;
             _slotCombo.Width = width;
@@ -140,6 +159,8 @@ namespace SNAP
                 _newCustomerToggle,
                 _newCustomerPanel,
                 AppTheme.BuildFieldGroup("Photography Package", _packageCombo),
+                _addOnsToggle,
+                _addOnsPanel,
                 AppTheme.BuildFieldGroup("Session Date", _datePicker),
                 AppTheme.BuildFieldGroup("Photographer", _photographerCombo),
                 AppTheme.BuildFieldGroup("Time Slot (unavailable times are hidden)", _slotCombo),
@@ -152,6 +173,7 @@ namespace SNAP
         {
             _customerSearch.TextChanged += (_, _) => PopulateCustomerCombo(_customerSearch.Text);
             _newCustomerToggle.Click += (_, _) => ToggleNewCustomerPanel();
+            _addOnsToggle.CheckedChanged += (_, _) => _addOnsPanel.Visible = _addOnsToggle.Checked;
 
             _packageCombo.SelectedIndexChanged += (_, _) => RebuildTimeSlots();
             _datePicker.ValueChanged += (_, _) => RebuildTimeSlots();
@@ -461,6 +483,19 @@ namespace SNAP
                 _db.Bookings.Add(entity);
             }
 
+            TenantSyncService.SaveAndSync(_db);
+
+            if (entity.Status == BookingStatus.Cancelled)
+            {
+                AddOnsService.ReverseAllAddOns(_db, entity.BookingId);
+            }
+            else
+            {
+                var desiredAddOns = _addOnsToggle.Checked
+                    ? _addOnsPanel.GetSelections()
+                    : new List<AddOnsService.AddOnSelection>();
+                AddOnsService.ApplyAddOns(_db, entity.BookingId, entity.CustomerId, desiredAddOns);
+            }
             TenantSyncService.SaveAndSync(_db);
 
             MessageBox.Show(
