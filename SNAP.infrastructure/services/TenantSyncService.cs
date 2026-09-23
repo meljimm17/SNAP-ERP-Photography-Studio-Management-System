@@ -39,6 +39,9 @@ namespace SNAP.infrastructure.services
             [nameof(Expense)] = typeof(Expense),
             [nameof(SalaryPayment)] = typeof(SalaryPayment),
             [nameof(ProductSale)] = typeof(ProductSale),
+            [nameof(PurchaseOrder)] = typeof(PurchaseOrder),
+            [nameof(PurchaseOrderLine)] = typeof(PurchaseOrderLine),
+            [nameof(OwnerTransaction)] = typeof(OwnerTransaction),
         };
 
         /// <summary>
@@ -58,6 +61,9 @@ namespace SNAP.infrastructure.services
             nameof(Booking),
             nameof(Customer),
             nameof(ProductSale),
+            nameof(PurchaseOrder),
+            nameof(PurchaseOrderLine),
+            nameof(OwnerTransaction),
         };
 
         /// <summary>
@@ -285,6 +291,9 @@ namespace SNAP.infrastructure.services
                 Expense ex => $"₱{ex.Amount:N2} ({ex.Category})",
                 SalaryPayment sp => $"₱{sp.Amount:N2} salary payment",
                 ProductSale ps => $"{ps.Quantity:0.##} x item #{ps.InventoryId} (₱{ps.TotalAmount:N2})",
+                PurchaseOrder po => $"PO for supplier #{po.SupplierId} ({po.Status})",
+                PurchaseOrderLine pol => $"{pol.QuantityOrdered:0.##} x item #{pol.InventoryId} on PO #{pol.PurchaseOrderId}",
+                OwnerTransaction ot => $"{ot.Type} of ₱{ot.Amount:N2}",
                 _ => null
             };
 

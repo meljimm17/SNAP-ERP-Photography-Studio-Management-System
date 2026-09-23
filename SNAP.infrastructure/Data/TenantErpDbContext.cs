@@ -28,6 +28,9 @@ namespace SNAP.infrastructure.Data
         public DbSet<SalaryPayment> SalaryPayments => Set<SalaryPayment>();
         public DbSet<AuditLog> AuditLogs => Set<AuditLog>();
         public DbSet<ProductSale> ProductSales => Set<ProductSale>();
+        public DbSet<PurchaseOrder> PurchaseOrders => Set<PurchaseOrder>();
+        public DbSet<PurchaseOrderLine> PurchaseOrderLines => Set<PurchaseOrderLine>();
+        public DbSet<OwnerTransaction> OwnerTransactions => Set<OwnerTransaction>();
 
         protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder)
         {
@@ -209,6 +212,8 @@ namespace SNAP.infrastructure.Data
                 entity.Property(x => x.Category).IsRequired();
                 entity.Property(x => x.Description).HasMaxLength(500);
                 entity.Property(x => x.Amount).HasColumnType("decimal(18,2)");
+                entity.Property(x => x.IsPaid).HasDefaultValue(true);
+                entity.Property(x => x.IsDeleted).HasDefaultValue(false);
                 entity.HasOne(x => x.Supplier)
                     .WithMany()
                     .HasForeignKey(x => x.SupplierId)
@@ -217,6 +222,10 @@ namespace SNAP.infrastructure.Data
                     .WithMany()
                     .HasForeignKey(x => x.EquipmentId)
                     .OnDelete(DeleteBehavior.SetNull);
+                entity.HasOne(x => x.PurchaseOrder)
+                    .WithMany()
+                    .HasForeignKey(x => x.PurchaseOrderId)
+                    .OnDelete(DeleteBehavior.Restrict);
             });
 
             modelBuilder.Entity<SalaryPayment>(entity =>
@@ -224,10 +233,54 @@ namespace SNAP.infrastructure.Data
                 entity.HasKey(x => x.SalaryPaymentId);
                 entity.Property(x => x.Amount).HasColumnType("decimal(18,2)");
                 entity.Property(x => x.Notes).HasMaxLength(500);
+                entity.Property(x => x.IsDeleted).HasDefaultValue(false);
                 entity.HasOne(x => x.TenantUser)
                     .WithMany()
                     .HasForeignKey(x => x.TenantUserId)
                     .OnDelete(DeleteBehavior.Restrict);
+            });
+
+            modelBuilder.Entity<PurchaseOrder>(entity =>
+            {
+                entity.HasKey(x => x.PurchaseOrderId);
+                entity.Property(x => x.Status).IsRequired();
+                entity.Property(x => x.Notes).HasMaxLength(500);
+                entity.HasOne(x => x.Supplier)
+                    .WithMany()
+                    .HasForeignKey(x => x.SupplierId)
+                    .OnDelete(DeleteBehavior.Restrict);
+                entity.HasOne(x => x.CreatedByUser)
+                    .WithMany()
+                    .HasForeignKey(x => x.CreatedByUserId)
+                    .OnDelete(DeleteBehavior.SetNull);
+                entity.HasOne(x => x.ReceivedByUser)
+                    .WithMany()
+                    .HasForeignKey(x => x.ReceivedByUserId)
+                    .OnDelete(DeleteBehavior.SetNull);
+            });
+
+            modelBuilder.Entity<PurchaseOrderLine>(entity =>
+            {
+                entity.HasKey(x => x.PurchaseOrderLineId);
+                entity.Property(x => x.QuantityOrdered).HasColumnType("decimal(18,2)");
+                entity.Property(x => x.QuantityReceived).HasColumnType("decimal(18,2)");
+                entity.Property(x => x.UnitCost).HasColumnType("decimal(18,2)");
+                entity.HasOne(x => x.PurchaseOrder)
+                    .WithMany(x => x.Lines)
+                    .HasForeignKey(x => x.PurchaseOrderId)
+                    .OnDelete(DeleteBehavior.Cascade);
+                entity.HasOne(x => x.Inventory)
+                    .WithMany()
+                    .HasForeignKey(x => x.InventoryId)
+                    .OnDelete(DeleteBehavior.Restrict);
+            });
+
+            modelBuilder.Entity<OwnerTransaction>(entity =>
+            {
+                entity.HasKey(x => x.OwnerTransactionId);
+                entity.Property(x => x.Type).IsRequired();
+                entity.Property(x => x.Amount).HasColumnType("decimal(18,2)");
+                entity.Property(x => x.Notes).HasMaxLength(500);
             });
 
             modelBuilder.Entity<AuditLog>(entity =>

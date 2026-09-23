@@ -18,6 +18,8 @@ namespace SNAP.domain.entities
 
         public string? Notes { get; set; }
 
+        public bool IsDeleted { get; set; }
+
         public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
     }
 }

@@ -233,12 +233,30 @@ namespace SNAP.infrastructure.Migrations.TenantErpDb
                     b.Property<DateTime>("ExpenseDate")
                         .HasColumnType("datetime2");
 
+                    b.Property<bool>("IsDeleted")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bit")
+                        .HasDefaultValue(false);
+
+                    b.Property<bool>("IsPaid")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bit")
+                        .HasDefaultValue(true);
+
+                    b.Property<DateTime?>("PaidDate")
+                        .HasColumnType("datetime2");
+
+                    b.Property<int?>("PurchaseOrderId")
+                        .HasColumnType("int");
+
                     b.Property<int?>("SupplierId")
                         .HasColumnType("int");
 
                     b.HasKey("ExpenseId");
 
                     b.HasIndex("EquipmentId");
+
+                    b.HasIndex("PurchaseOrderId");
 
                     b.HasIndex("SupplierId");
 
@@ -293,6 +311,35 @@ namespace SNAP.infrastructure.Migrations.TenantErpDb
                     b.HasIndex("SupplierId");
 
                     b.ToTable("InventoryItems");
+                });
+
+            modelBuilder.Entity("SNAP.domain.entities.OwnerTransaction", b =>
+                {
+                    b.Property<int>("OwnerTransactionId")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("OwnerTransactionId"));
+
+                    b.Property<decimal>("Amount")
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("Notes")
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
+                    b.Property<DateTime>("TransactionDate")
+                        .HasColumnType("datetime2");
+
+                    b.Property<int>("Type")
+                        .HasColumnType("int");
+
+                    b.HasKey("OwnerTransactionId");
+
+                    b.ToTable("OwnerTransactions");
                 });
 
             modelBuilder.Entity("SNAP.domain.entities.Payment", b =>
@@ -421,6 +468,82 @@ namespace SNAP.infrastructure.Migrations.TenantErpDb
                     b.ToTable("ProductSales");
                 });
 
+            modelBuilder.Entity("SNAP.domain.entities.PurchaseOrder", b =>
+                {
+                    b.Property<int>("PurchaseOrderId")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("PurchaseOrderId"));
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<int?>("CreatedByUserId")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime?>("ExpectedDate")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("Notes")
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
+                    b.Property<DateTime>("OrderDate")
+                        .HasColumnType("datetime2");
+
+                    b.Property<int?>("ReceivedByUserId")
+                        .HasColumnType("int");
+
+                    b.Property<int>("Status")
+                        .HasColumnType("int");
+
+                    b.Property<int>("SupplierId")
+                        .HasColumnType("int");
+
+                    b.HasKey("PurchaseOrderId");
+
+                    b.HasIndex("CreatedByUserId");
+
+                    b.HasIndex("ReceivedByUserId");
+
+                    b.HasIndex("SupplierId");
+
+                    b.ToTable("PurchaseOrders");
+                });
+
+            modelBuilder.Entity("SNAP.domain.entities.PurchaseOrderLine", b =>
+                {
+                    b.Property<int>("PurchaseOrderLineId")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("PurchaseOrderLineId"));
+
+                    b.Property<int>("InventoryId")
+                        .HasColumnType("int");
+
+                    b.Property<int>("PurchaseOrderId")
+                        .HasColumnType("int");
+
+                    b.Property<decimal>("QuantityOrdered")
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<decimal>("QuantityReceived")
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<decimal>("UnitCost")
+                        .HasColumnType("decimal(18,2)");
+
+                    b.HasKey("PurchaseOrderLineId");
+
+                    b.HasIndex("InventoryId");
+
+                    b.HasIndex("PurchaseOrderId");
+
+                    b.ToTable("PurchaseOrderLines");
+                });
+
             modelBuilder.Entity("SNAP.domain.entities.RolePermission", b =>
                 {
                     b.Property<int>("RolePermissionId")
@@ -545,6 +668,11 @@ namespace SNAP.infrastructure.Migrations.TenantErpDb
 
                     b.Property<DateTime>("CreatedAt")
                         .HasColumnType("datetime2");
+
+                    b.Property<bool>("IsDeleted")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bit")
+                        .HasDefaultValue(false);
 
                     b.Property<string>("Notes")
                         .HasMaxLength(500)
@@ -731,12 +859,19 @@ namespace SNAP.infrastructure.Migrations.TenantErpDb
                         .HasForeignKey("EquipmentId")
                         .OnDelete(DeleteBehavior.SetNull);
 
+                    b.HasOne("SNAP.domain.entities.PurchaseOrder", "PurchaseOrder")
+                        .WithMany()
+                        .HasForeignKey("PurchaseOrderId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
                     b.HasOne("SNAP.domain.entities.Supplier", "Supplier")
                         .WithMany()
                         .HasForeignKey("SupplierId")
                         .OnDelete(DeleteBehavior.SetNull);
 
                     b.Navigation("Equipment");
+
+                    b.Navigation("PurchaseOrder");
 
                     b.Navigation("Supplier");
                 });
@@ -787,6 +922,50 @@ namespace SNAP.infrastructure.Migrations.TenantErpDb
                     b.Navigation("Inventory");
                 });
 
+            modelBuilder.Entity("SNAP.domain.entities.PurchaseOrder", b =>
+                {
+                    b.HasOne("SNAP.domain.entities.TenantUser", "CreatedByUser")
+                        .WithMany()
+                        .HasForeignKey("CreatedByUserId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
+                    b.HasOne("SNAP.domain.entities.TenantUser", "ReceivedByUser")
+                        .WithMany()
+                        .HasForeignKey("ReceivedByUserId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
+                    b.HasOne("SNAP.domain.entities.Supplier", "Supplier")
+                        .WithMany()
+                        .HasForeignKey("SupplierId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("CreatedByUser");
+
+                    b.Navigation("ReceivedByUser");
+
+                    b.Navigation("Supplier");
+                });
+
+            modelBuilder.Entity("SNAP.domain.entities.PurchaseOrderLine", b =>
+                {
+                    b.HasOne("SNAP.domain.entities.Inventory", "Inventory")
+                        .WithMany()
+                        .HasForeignKey("InventoryId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("SNAP.domain.entities.PurchaseOrder", "PurchaseOrder")
+                        .WithMany("Lines")
+                        .HasForeignKey("PurchaseOrderId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Inventory");
+
+                    b.Navigation("PurchaseOrder");
+                });
+
             modelBuilder.Entity("SNAP.domain.entities.SalaryPayment", b =>
                 {
                     b.HasOne("SNAP.domain.entities.TenantUser", "TenantUser")
@@ -796,6 +975,11 @@ namespace SNAP.infrastructure.Migrations.TenantErpDb
                         .IsRequired();
 
                     b.Navigation("TenantUser");
+                });
+
+            modelBuilder.Entity("SNAP.domain.entities.PurchaseOrder", b =>
+                {
+                    b.Navigation("Lines");
                 });
 #pragma warning restore 612, 618
         }
