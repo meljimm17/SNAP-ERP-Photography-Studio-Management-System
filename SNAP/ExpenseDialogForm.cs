@@ -17,6 +17,9 @@ namespace SNAP
         private readonly RoundedDatePicker _expenseDatePicker = new() { Format = DateTimePickerFormat.Custom, CustomFormat = "MMMM d, yyyy" };
         private readonly RoundedComboBox _supplierCombo = new();
         private readonly RoundedComboBox _equipmentCombo = new();
+        private readonly CheckBox _isPaidCheckbox = new() { Text = "Paid", ForeColor = AppTheme.TextPrimaryColor, Font = AppTheme.BodyFont, AutoSize = false };
+        private readonly RoundedDatePicker _paidDatePicker = new() { Format = DateTimePickerFormat.Custom, CustomFormat = "MMMM d, yyyy" };
+        private Control _paidDateGroup = null!;
 
         private readonly RoundedButton _saveButton = new() { Text = "Save Expense" };
         private readonly RoundedButton _cancelButton = new() { Text = "Cancel" };
@@ -27,12 +30,14 @@ namespace SNAP
         public DateTime ExpenseDate { get; private set; }
         public int? SupplierId { get; private set; }
         public int? EquipmentId { get; private set; }
+        public bool IsPaid { get; private set; }
+        public DateTime? PaidDate { get; private set; }
 
         public ExpenseDialogForm(Expense? existing, List<Supplier> suppliers, List<Equipment> equipment)
         {
             Text = existing is null ? "Add Expense" : "Edit Expense";
             Width = 480;
-            Height = 640;
+            Height = 700;
             StartPosition = FormStartPosition.CenterParent;
             BackColor = AppTheme.WhiteColor;
             FormBorderStyle = FormBorderStyle.FixedDialog;
@@ -46,6 +51,9 @@ namespace SNAP
             _expenseDatePicker.Width = width;
             _supplierCombo.Width = width;
             _equipmentCombo.Width = width;
+            _isPaidCheckbox.Width = width;
+            _isPaidCheckbox.Height = 24;
+            _paidDatePicker.Width = width;
             _saveButton.Width = 190;
             _saveButton.Height = 44;
             _cancelButton.Width = 190;
@@ -59,6 +67,9 @@ namespace SNAP
             _equipmentCombo.Items.Add(new ComboItem(0, "None"));
             foreach (var item in equipment) _equipmentCombo.Items.Add(new ComboItem(item.EquipmentId, item.EquipmentName));
 
+            _paidDateGroup = AppTheme.BuildFieldGroup("Paid Date", _paidDatePicker);
+            _isPaidCheckbox.CheckedChanged += (_, _) => _paidDateGroup.Visible = _isPaidCheckbox.Checked;
+
             Controls.Add(AppTheme.BuildDialogBody(
                 AppTheme.BuildFieldGroup("Category", _categoryCombo),
                 AppTheme.BuildFieldGroup("Description", _descriptionBox),
@@ -66,6 +77,8 @@ namespace SNAP
                 AppTheme.BuildFieldGroup("Expense Date", _expenseDatePicker),
                 AppTheme.BuildFieldGroup("Supplier (optional)", _supplierCombo),
                 AppTheme.BuildFieldGroup("Equipment (optional)", _equipmentCombo),
+                _isPaidCheckbox,
+                _paidDateGroup,
                 AppTheme.BuildDialogButtonRow(_saveButton, _cancelButton)));
 
             if (existing is not null)
@@ -76,6 +89,9 @@ namespace SNAP
                 _expenseDatePicker.Value = existing.ExpenseDate;
                 SelectComboValue(_supplierCombo, existing.SupplierId ?? 0);
                 SelectComboValue(_equipmentCombo, existing.EquipmentId ?? 0);
+                _isPaidCheckbox.Checked = existing.IsPaid;
+                _paidDatePicker.Value = existing.PaidDate ?? DateTime.Today;
+                _paidDateGroup.Visible = existing.IsPaid;
             }
             else
             {
@@ -83,6 +99,9 @@ namespace SNAP
                 _expenseDatePicker.Value = DateTime.Today;
                 _supplierCombo.SelectedIndex = 0;
                 _equipmentCombo.SelectedIndex = 0;
+                _isPaidCheckbox.Checked = true;
+                _paidDatePicker.Value = DateTime.Today;
+                _paidDateGroup.Visible = true;
             }
 
             _cancelButton.Click += (_, _) => { DialogResult = DialogResult.Cancel; Close(); };
@@ -121,6 +140,8 @@ namespace SNAP
             ExpenseDate = _expenseDatePicker.Value.Date;
             SupplierId = _supplierCombo.SelectedItem is ComboItem s && s.Id > 0 ? s.Id : null;
             EquipmentId = _equipmentCombo.SelectedItem is ComboItem eq && eq.Id > 0 ? eq.Id : null;
+            IsPaid = _isPaidCheckbox.Checked;
+            PaidDate = _isPaidCheckbox.Checked ? _paidDatePicker.Value.Date : null;
 
             DialogResult = DialogResult.OK;
             Close();

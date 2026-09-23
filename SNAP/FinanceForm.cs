@@ -54,6 +54,8 @@ namespace SNAP
             _expenseGrid.AutoGenerateColumns = true;
             _expenseGrid.SelectionMode = DataGridViewSelectionMode.FullRowSelect;
             _expenseGrid.MultiSelect = false;
+            AppTheme.StyleStatusColumn(_expenseGrid, "PaidStatus", value =>
+                value is true ? ("Paid", StatusKind.Success) : ("Unpaid (Accounts Payable)", StatusKind.Warning));
 
             var toolbar = new FlowLayoutPanel
             {
@@ -164,6 +166,7 @@ namespace SNAP
                 _expenseGrid.DataSource = db.Expenses
                     .Include(x => x.Supplier)
                     .Include(x => x.Equipment)
+                    .Where(x => !x.IsDeleted)
                     .OrderByDescending(x => x.CreatedAt)
                     .Select(x => new ExpenseRow
                     {
@@ -173,7 +176,9 @@ namespace SNAP
                         Amount = x.Amount,
                         ExpenseDate = x.ExpenseDate,
                         Supplier = x.Supplier != null ? x.Supplier.SupplierName : string.Empty,
-                        Equipment = x.Equipment != null ? x.Equipment.EquipmentName : string.Empty
+                        Equipment = x.Equipment != null ? x.Equipment.EquipmentName : string.Empty,
+                        PaidStatus = x.IsPaid,
+                        PurchaseOrderId = x.PurchaseOrderId
                     })
                     .ToList();
             }
@@ -190,6 +195,7 @@ namespace SNAP
                 using var db = CreateDbContext();
                 _salaryGrid.DataSource = db.SalaryPayments
                     .Include(x => x.TenantUser)
+                    .Where(x => !x.IsDeleted)
                     .OrderByDescending(x => x.CreatedAt)
                     .Select(x => new SalaryPaymentRow
                     {
@@ -226,6 +232,8 @@ namespace SNAP
                 ExpenseDate = dialog.ExpenseDate,
                 SupplierId = dialog.SupplierId,
                 EquipmentId = dialog.EquipmentId,
+                IsPaid = dialog.IsPaid,
+                PaidDate = dialog.PaidDate,
                 CreatedAt = DateTime.UtcNow
             });
             TenantSyncService.SaveAndSync(db);
@@ -257,6 +265,8 @@ namespace SNAP
             entity.ExpenseDate = dialog.ExpenseDate;
             entity.SupplierId = dialog.SupplierId;
             entity.EquipmentId = dialog.EquipmentId;
+            entity.IsPaid = dialog.IsPaid;
+            entity.PaidDate = dialog.PaidDate;
 
             TenantSyncService.SaveAndSync(db);
             LoadExpenses();
@@ -270,7 +280,7 @@ namespace SNAP
             if (selected is null) return;
 
             if (MessageBox.Show(
-                    $"Delete this expense of ₱{selected.Amount:N2}? This cannot be undone.",
+                    $"Delete this expense of ₱{selected.Amount:N2}? It will no longer appear in this list or count toward reports.",
                     "Delete Expense", MessageBoxButtons.YesNo, MessageBoxIcon.Question) != DialogResult.Yes)
             {
                 return;
@@ -280,7 +290,7 @@ namespace SNAP
             var entity = db.Expenses.Find(selected.ExpenseId);
             if (entity is null) return;
 
-            db.Expenses.Remove(entity);
+            entity.IsDeleted = true;
             TenantSyncService.SaveAndSync(db);
             LoadExpenses();
         }
@@ -349,7 +359,7 @@ namespace SNAP
             if (selected is null) return;
 
             if (MessageBox.Show(
-                    $"Delete this salary payment of ₱{selected.Amount:N2} for {selected.Employee}? This cannot be undone.",
+                    $"Delete this salary payment of ₱{selected.Amount:N2} for {selected.Employee}? It will no longer appear in this list or count toward reports.",
                     "Delete Salary Payment", MessageBoxButtons.YesNo, MessageBoxIcon.Question) != DialogResult.Yes)
             {
                 return;
@@ -359,7 +369,7 @@ namespace SNAP
             var entity = db.SalaryPayments.Find(selected.SalaryPaymentId);
             if (entity is null) return;
 
-            db.SalaryPayments.Remove(entity);
+            entity.IsDeleted = true;
             TenantSyncService.SaveAndSync(db);
             LoadSalaryPayments();
         }
@@ -373,6 +383,8 @@ namespace SNAP
             public DateTime ExpenseDate { get; set; }
             public string Supplier { get; set; } = string.Empty;
             public string Equipment { get; set; } = string.Empty;
+            public bool PaidStatus { get; set; }
+            public int? PurchaseOrderId { get; set; }
         }
 
         private sealed class SalaryPaymentRow

@@ -219,11 +219,11 @@ namespace SNAP
                 if (!_isMicroTier)
                 {
                     var salaryPaidInRange = db.SalaryPayments
-                        .Where(s => s.PaymentDate >= from && s.PaymentDate < toExclusive)
+                        .Where(s => !s.IsDeleted && s.PaymentDate >= from && s.PaymentDate < toExclusive)
                         .Sum(s => (decimal?)s.Amount) ?? 0m;
 
                     var expensesInRange = db.Expenses
-                        .Where(e => e.ExpenseDate >= from && e.ExpenseDate < toExclusive)
+                        .Where(e => !e.IsDeleted && e.ExpenseDate >= from && e.ExpenseDate < toExclusive)
                         .Sum(e => (decimal?)e.Amount) ?? 0m;
 
                     _totalSalaryValue.Text = $"₱{salaryPaidInRange:N2}";
