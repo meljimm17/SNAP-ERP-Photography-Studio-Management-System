@@ -12,8 +12,8 @@ using SNAP.infrastructure.Data;
 namespace SNAP.infrastructure.Migrations.TenantErpDb
 {
     [DbContext(typeof(TenantErpDbContext))]
-    [Migration("20260923184334_RemoveRolePermission")]
-    partial class RemoveRolePermission
+    [Migration("20260923185732_AddSmallTierPhase2FieldsAndCleanup")]
+    partial class AddSmallTierPhase2FieldsAndCleanup
     {
         /// <inheritdoc />
         protected override void BuildTargetModel(ModelBuilder modelBuilder)
@@ -845,12 +845,12 @@ namespace SNAP.infrastructure.Migrations.TenantErpDb
                     b.HasOne("SNAP.domain.entities.TenantUser", "CreatedByUser")
                         .WithMany()
                         .HasForeignKey("CreatedByUserId")
-                        .OnDelete(DeleteBehavior.SetNull);
+                        .OnDelete(DeleteBehavior.Restrict);
 
                     b.HasOne("SNAP.domain.entities.TenantUser", "ReceivedByUser")
                         .WithMany()
                         .HasForeignKey("ReceivedByUserId")
-                        .OnDelete(DeleteBehavior.SetNull);
+                        .OnDelete(DeleteBehavior.Restrict);
 
                     b.HasOne("SNAP.domain.entities.Supplier", "Supplier")
                         .WithMany()

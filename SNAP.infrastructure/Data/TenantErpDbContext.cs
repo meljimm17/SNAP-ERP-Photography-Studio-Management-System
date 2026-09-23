@@ -232,14 +232,20 @@ namespace SNAP.infrastructure.Data
                     .WithMany()
                     .HasForeignKey(x => x.SupplierId)
                     .OnDelete(DeleteBehavior.Restrict);
+                // TenantUsers are only ever soft-deleted (Status flips to Inactive/Suspended, see
+                // UserManagementForm) - never hard-deleted - so Restrict has no practical behavior
+                // difference from SetNull here. Two SetNull cascade paths from TenantUsers into the
+                // same PurchaseOrders table is what SQL Server actually rejects at DDL time
+                // ("may cause cycles or multiple cascade paths"), so Restrict is required, not just
+                // a stylistic choice.
                 entity.HasOne(x => x.CreatedByUser)
                     .WithMany()
                     .HasForeignKey(x => x.CreatedByUserId)
-                    .OnDelete(DeleteBehavior.SetNull);
+                    .OnDelete(DeleteBehavior.Restrict);
                 entity.HasOne(x => x.ReceivedByUser)
                     .WithMany()
                     .HasForeignKey(x => x.ReceivedByUserId)
-                    .OnDelete(DeleteBehavior.SetNull);
+                    .OnDelete(DeleteBehavior.Restrict);
             });
 
             modelBuilder.Entity<PurchaseOrderLine>(entity =>

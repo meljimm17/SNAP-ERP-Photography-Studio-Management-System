@@ -842,12 +842,12 @@ namespace SNAP.infrastructure.Migrations.TenantErpDb
                     b.HasOne("SNAP.domain.entities.TenantUser", "CreatedByUser")
                         .WithMany()
                         .HasForeignKey("CreatedByUserId")
-                        .OnDelete(DeleteBehavior.SetNull);
+                        .OnDelete(DeleteBehavior.Restrict);
 
                     b.HasOne("SNAP.domain.entities.TenantUser", "ReceivedByUser")
                         .WithMany()
                         .HasForeignKey("ReceivedByUserId")
-                        .OnDelete(DeleteBehavior.SetNull);
+                        .OnDelete(DeleteBehavior.Restrict);
 
                     b.HasOne("SNAP.domain.entities.Supplier", "Supplier")
                         .WithMany()
