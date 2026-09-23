@@ -38,6 +38,7 @@ namespace SNAP.infrastructure.services
             [nameof(Equipment)] = typeof(Equipment),
             [nameof(Expense)] = typeof(Expense),
             [nameof(SalaryPayment)] = typeof(SalaryPayment),
+            [nameof(ProductSale)] = typeof(ProductSale),
         };
 
         /// <summary>
@@ -56,6 +57,7 @@ namespace SNAP.infrastructure.services
             nameof(TenantUser),
             nameof(Booking),
             nameof(Customer),
+            nameof(ProductSale),
         };
 
         /// <summary>
@@ -282,6 +284,7 @@ namespace SNAP.infrastructure.services
                 Payment p => $"₱{p.AmountPaid:N2} toward booking #{p.BookingId}",
                 Expense ex => $"₱{ex.Amount:N2} ({ex.Category})",
                 SalaryPayment sp => $"₱{sp.Amount:N2} salary payment",
+                ProductSale ps => $"{ps.Quantity:0.##} x item #{ps.InventoryId} (₱{ps.TotalAmount:N2})",
                 _ => null
             };
 

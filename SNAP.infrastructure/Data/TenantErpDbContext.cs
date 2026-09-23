@@ -27,6 +27,7 @@ namespace SNAP.infrastructure.Data
         public DbSet<Expense> Expenses => Set<Expense>();
         public DbSet<SalaryPayment> SalaryPayments => Set<SalaryPayment>();
         public DbSet<AuditLog> AuditLogs => Set<AuditLog>();
+        public DbSet<ProductSale> ProductSales => Set<ProductSale>();
 
         protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder)
         {
@@ -157,10 +158,35 @@ namespace SNAP.infrastructure.Data
                 entity.Property(x => x.Category).HasMaxLength(100);
                 entity.Property(x => x.QuantityOnHand).HasColumnType("decimal(18,2)");
                 entity.Property(x => x.ReorderLevel).HasColumnType("decimal(18,2)");
+                entity.Property(x => x.SellingPrice).HasColumnType("decimal(18,2)");
+                entity.Property(x => x.UnitCost).HasColumnType("decimal(18,2)");
                 entity.Property(x => x.IsActive).HasDefaultValue(true);
                 entity.HasOne(x => x.Supplier)
                     .WithMany()
                     .HasForeignKey(x => x.SupplierId)
+                    .OnDelete(DeleteBehavior.SetNull);
+            });
+
+            modelBuilder.Entity<ProductSale>(entity =>
+            {
+                entity.HasKey(x => x.ProductSaleId);
+                entity.Property(x => x.Quantity).HasColumnType("decimal(18,2)");
+                entity.Property(x => x.UnitPrice).HasColumnType("decimal(18,2)");
+                entity.Property(x => x.TotalAmount).HasColumnType("decimal(18,2)");
+                entity.Property(x => x.PaymentMethod).IsRequired();
+                entity.Property(x => x.IsDeleted).HasDefaultValue(false);
+                entity.HasIndex(x => x.BookingId);
+                entity.HasOne(x => x.Inventory)
+                    .WithMany()
+                    .HasForeignKey(x => x.InventoryId)
+                    .OnDelete(DeleteBehavior.Restrict);
+                entity.HasOne(x => x.Customer)
+                    .WithMany()
+                    .HasForeignKey(x => x.CustomerId)
+                    .OnDelete(DeleteBehavior.SetNull);
+                entity.HasOne(x => x.Booking)
+                    .WithMany()
+                    .HasForeignKey(x => x.BookingId)
                     .OnDelete(DeleteBehavior.SetNull);
             });
 

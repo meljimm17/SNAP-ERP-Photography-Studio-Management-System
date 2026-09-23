@@ -262,6 +262,9 @@ namespace SNAP.infrastructure.Migrations.TenantErpDb
                         .HasColumnType("bit")
                         .HasDefaultValue(true);
 
+                    b.Property<bool>("IsForSale")
+                        .HasColumnType("bit");
+
                     b.Property<string>("ItemName")
                         .IsRequired()
                         .HasMaxLength(200)
@@ -276,8 +279,14 @@ namespace SNAP.infrastructure.Migrations.TenantErpDb
                     b.Property<decimal>("ReorderLevel")
                         .HasColumnType("decimal(18,2)");
 
+                    b.Property<decimal?>("SellingPrice")
+                        .HasColumnType("decimal(18,2)");
+
                     b.Property<int?>("SupplierId")
                         .HasColumnType("int");
+
+                    b.Property<decimal?>("UnitCost")
+                        .HasColumnType("decimal(18,2)");
 
                     b.HasKey("InventoryId");
 
@@ -359,6 +368,57 @@ namespace SNAP.infrastructure.Migrations.TenantErpDb
                     b.HasKey("PackageId");
 
                     b.ToTable("PhotographyPackages");
+                });
+
+            modelBuilder.Entity("SNAP.domain.entities.ProductSale", b =>
+                {
+                    b.Property<int>("ProductSaleId")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("ProductSaleId"));
+
+                    b.Property<int?>("BookingId")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<int?>("CustomerId")
+                        .HasColumnType("int");
+
+                    b.Property<int>("InventoryId")
+                        .HasColumnType("int");
+
+                    b.Property<bool>("IsDeleted")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bit")
+                        .HasDefaultValue(false);
+
+                    b.Property<int>("PaymentMethod")
+                        .HasColumnType("int");
+
+                    b.Property<decimal>("Quantity")
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<DateTime>("SaleDate")
+                        .HasColumnType("datetime2");
+
+                    b.Property<decimal>("TotalAmount")
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<decimal>("UnitPrice")
+                        .HasColumnType("decimal(18,2)");
+
+                    b.HasKey("ProductSaleId");
+
+                    b.HasIndex("BookingId");
+
+                    b.HasIndex("CustomerId");
+
+                    b.HasIndex("InventoryId");
+
+                    b.ToTable("ProductSales");
                 });
 
             modelBuilder.Entity("SNAP.domain.entities.RolePermission", b =>
@@ -700,6 +760,31 @@ namespace SNAP.infrastructure.Migrations.TenantErpDb
                         .IsRequired();
 
                     b.Navigation("Booking");
+                });
+
+            modelBuilder.Entity("SNAP.domain.entities.ProductSale", b =>
+                {
+                    b.HasOne("SNAP.domain.entities.Booking", "Booking")
+                        .WithMany()
+                        .HasForeignKey("BookingId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
+                    b.HasOne("SNAP.domain.entities.Customer", "Customer")
+                        .WithMany()
+                        .HasForeignKey("CustomerId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
+                    b.HasOne("SNAP.domain.entities.Inventory", "Inventory")
+                        .WithMany()
+                        .HasForeignKey("InventoryId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("Booking");
+
+                    b.Navigation("Customer");
+
+                    b.Navigation("Inventory");
                 });
 
             modelBuilder.Entity("SNAP.domain.entities.SalaryPayment", b =>
