@@ -17,7 +17,6 @@ namespace SNAP.infrastructure.Data
         public DbSet<Customer> Customers => Set<Customer>();
         public DbSet<PhotographyPackage> PhotographyPackages => Set<PhotographyPackage>();
         public DbSet<TenantUser> TenantUsers => Set<TenantUser>();
-        public DbSet<RolePermission> RolePermissions => Set<RolePermission>();
         public DbSet<Booking> Bookings => Set<Booking>();
         public DbSet<Payment> Payments => Set<Payment>();
         public DbSet<SyncOutboxEntry> SyncOutboxEntries => Set<SyncOutboxEntry>();
@@ -77,30 +76,6 @@ namespace SNAP.infrastructure.Data
                 entity.Property(x => x.MonthlySalary).HasColumnType("decimal(18,2)");
                 entity.HasIndex(x => x.Username).IsUnique();
             });
-
-            modelBuilder.Entity<RolePermission>(entity =>
-            {
-                entity.HasKey(x => x.RolePermissionId);
-                entity.Property(x => x.Role).IsRequired();
-                entity.Property(x => x.Module).IsRequired();
-                entity.Property(x => x.AccessLevel).IsRequired();
-                entity.HasIndex(x => new { x.Role, x.Module }).IsUnique();
-            });
-
-            modelBuilder.Entity<RolePermission>().HasData(
-                new RolePermission { RolePermissionId = 1, Role = SNAP.domain.enums.SystemRole.Admin, Module = SNAP.domain.enums.SystemModule.CustomerManagement, AccessLevel = SNAP.domain.enums.AccessLevel.Full },
-                new RolePermission { RolePermissionId = 2, Role = SNAP.domain.enums.SystemRole.Admin, Module = SNAP.domain.enums.SystemModule.PackageManagement, AccessLevel = SNAP.domain.enums.AccessLevel.Full },
-                new RolePermission { RolePermissionId = 3, Role = SNAP.domain.enums.SystemRole.Admin, Module = SNAP.domain.enums.SystemModule.BookingScheduling, AccessLevel = SNAP.domain.enums.AccessLevel.Full },
-                new RolePermission { RolePermissionId = 4, Role = SNAP.domain.enums.SystemRole.Admin, Module = SNAP.domain.enums.SystemModule.PaymentManagement, AccessLevel = SNAP.domain.enums.AccessLevel.Full },
-                new RolePermission { RolePermissionId = 5, Role = SNAP.domain.enums.SystemRole.Staff, Module = SNAP.domain.enums.SystemModule.CustomerManagement, AccessLevel = SNAP.domain.enums.AccessLevel.Manage },
-                new RolePermission { RolePermissionId = 6, Role = SNAP.domain.enums.SystemRole.Staff, Module = SNAP.domain.enums.SystemModule.PackageManagement, AccessLevel = SNAP.domain.enums.AccessLevel.View },
-                new RolePermission { RolePermissionId = 7, Role = SNAP.domain.enums.SystemRole.Staff, Module = SNAP.domain.enums.SystemModule.BookingScheduling, AccessLevel = SNAP.domain.enums.AccessLevel.Manage },
-                new RolePermission { RolePermissionId = 8, Role = SNAP.domain.enums.SystemRole.Staff, Module = SNAP.domain.enums.SystemModule.PaymentManagement, AccessLevel = SNAP.domain.enums.AccessLevel.Manage },
-                new RolePermission { RolePermissionId = 9, Role = SNAP.domain.enums.SystemRole.Photographer, Module = SNAP.domain.enums.SystemModule.CustomerManagement, AccessLevel = SNAP.domain.enums.AccessLevel.AssignedView },
-                new RolePermission { RolePermissionId = 10, Role = SNAP.domain.enums.SystemRole.Photographer, Module = SNAP.domain.enums.SystemModule.PackageManagement, AccessLevel = SNAP.domain.enums.AccessLevel.AssignedView },
-                new RolePermission { RolePermissionId = 11, Role = SNAP.domain.enums.SystemRole.Photographer, Module = SNAP.domain.enums.SystemModule.BookingScheduling, AccessLevel = SNAP.domain.enums.AccessLevel.AssignedView },
-                new RolePermission { RolePermissionId = 12, Role = SNAP.domain.enums.SystemRole.Photographer, Module = SNAP.domain.enums.SystemModule.PaymentManagement, AccessLevel = SNAP.domain.enums.AccessLevel.None }
-            );
 
             modelBuilder.Entity<Booking>(entity =>
             {

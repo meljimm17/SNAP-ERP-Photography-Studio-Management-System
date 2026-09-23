@@ -12,6 +12,14 @@ namespace SNAP.infrastructure.services
     /// MonsterASP remote in the background. If the remote is unreachable, the row just stays
     /// pending in SyncOutboxEntries and gets retried on the next save or the next login - nothing
     /// is lost, and no local save is ever blocked or slowed down waiting on the remote.
+    ///
+    /// Dormant by design today, not broken: no local database is configured (every connection
+    /// string in appsettings.json points at the cloud already) and
+    /// SNAP_TENANTERP_REMOTE_CONNECTIONSTRING is unset, so TryPushPending's remote push is always
+    /// a no-op in the current deployment - every save still goes through the audit-logging half of
+    /// this class exactly as normal. Its intended real purpose, if ever finished: local-first
+    /// writes with background sync to the cloud, useful for on-location shoots with unreliable
+    /// internet.
     /// </summary>
     public static class TenantSyncService
     {
