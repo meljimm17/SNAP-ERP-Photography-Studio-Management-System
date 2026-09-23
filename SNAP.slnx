@@ -1,0 +1,6 @@
+<Solution>
+  <Project Path="SNAP.api/SNAP.api.csproj" Id="a5e919a3-daf3-4667-ac01-58fe0c05c8c4" />
+  <Project Path="SNAP.domain/SNAP.domain.csproj" Id="e19bea07-f310-4047-bd27-90111bae763c" />
+  <Project Path="SNAP.infrastructure/SNAP.infrastructure.csproj" Id="ae2f8643-de55-4b25-af2c-893512d6891e" />
+  <Project Path="SNAP/SNAP.winforms.csproj" />
+</Solution>

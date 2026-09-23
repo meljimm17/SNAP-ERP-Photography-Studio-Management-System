@@ -1,0 +1,14 @@
+@SNAP.api_HostAddress = http://localhost:5254
+
+GET {{SNAP.api_HostAddress}}/weatherforecast/
+Accept: application/json
+
+{
+    "companyCode": "COMP008",
+    "companyName": "My 8th Company",
+    "isActive": true,
+    "createdAt" : "2026-09-09T12:00:00Z"
+}
+
+###
+

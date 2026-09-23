@@ -1,0 +1,23 @@
+using SNAP.domain.enums;
+
+namespace SNAP.domain.entities
+{
+    public class Equipment
+    {
+        public int EquipmentId { get; set; }
+
+        public string EquipmentName { get; set; } = string.Empty;
+
+        public EquipmentStatus Status { get; set; } = EquipmentStatus.Available;
+
+        public int? AssignedToUserId { get; set; }
+
+        public TenantUser? AssignedToUser { get; set; }
+
+        public string? Notes { get; set; }
+
+        public bool IsActive { get; set; } = true;
+
+        public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
+    }
+}

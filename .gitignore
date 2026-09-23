@@ -1,0 +1,10 @@
+# Real database credentials - see the matching appsettings.example.json for the template.
+SNAP/appsettings.json
+SNAP.api/appsettings.json
+
+# Build output
+bin/
+obj/
+
+# Visual Studio
+.vs/
