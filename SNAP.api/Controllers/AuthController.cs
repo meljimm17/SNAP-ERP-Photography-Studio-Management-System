@@ -18,7 +18,7 @@ namespace SNAP.api.Controllers
 
         public sealed record CompanyLoginRequest(string CompanyCode, string Username, string Password);
 
-        public sealed record CompanyLoginResponse(string Token, string Role, string DisplayName, int CompanyId, string PlanTier, int UserId);
+        public sealed record CompanyLoginResponse(string Token, string Role, string DisplayName, int CompanyId, string PlanTier, int UserId, int? BranchId);
 
         /// <summary>Reuses AuthenticationService.TryAuthenticateCompany as-is for the actual
         /// credential/tier check - what's new here is wrapping the result in a signed JWT instead
@@ -32,8 +32,8 @@ namespace SNAP.api.Controllers
                 return Unauthorized(new { message = result.Message });
             }
 
-            var token = _jwtTokenService.GenerateToken(result.UserId, result.Role, result.CompanyId, result.PlanTier, result.DisplayName);
-            return Ok(new CompanyLoginResponse(token, result.Role.ToString(), result.DisplayName, result.CompanyId, result.PlanTier.ToString(), result.UserId));
+            var token = _jwtTokenService.GenerateToken(result.UserId, result.Role, result.CompanyId, result.PlanTier, result.DisplayName, result.BranchId);
+            return Ok(new CompanyLoginResponse(token, result.Role.ToString(), result.DisplayName, result.CompanyId, result.PlanTier.ToString(), result.UserId, result.BranchId));
         }
 
         public sealed record SystemAdminLoginRequest(string Username, string Password);

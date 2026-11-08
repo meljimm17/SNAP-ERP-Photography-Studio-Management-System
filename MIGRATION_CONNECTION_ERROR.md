@@ -140,7 +140,7 @@ Before trying migrations again, test SSMS first:
    - Server name: `db67905.public.databaseeasp.net,1433`
    - Authentication: SQL Server Authentication
    - Login: `db67905`
-   - Password: `rq+3ATs+95Lg+`
+   - Password: `<MASTER_DB_PASSWORD>`
 3. **Click "Connect"**
 
 **Result:**

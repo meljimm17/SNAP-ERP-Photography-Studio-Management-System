@@ -32,5 +32,11 @@ namespace SNAP.domain.entities
         public List<PurchaseOrderLine> Lines { get; set; } = new();
 
         public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
+
+        /// <summary>The branch this belongs to. Required - every row sits at exactly one branch.</summary>
+        public int BranchId { get; set; }
+
+        public Branch? Branch { get; set; }
+
     }
 }

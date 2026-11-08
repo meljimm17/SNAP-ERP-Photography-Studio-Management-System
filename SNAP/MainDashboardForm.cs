@@ -17,6 +17,10 @@ namespace SNAP
         private readonly SystemRole _role = AppSession.CurrentRole;
         private readonly FlowLayoutPanel _sidebar;
 
+        // Every module that made it into the sidebar (tier- and permission-visible), so the
+        // Dashboard's KPI cards/charts can open one exactly as clicking its sidebar item would.
+        private readonly Dictionary<SystemModule, (SidebarGroupHeader Header, SidebarNavItem Item, Action Open)> _navTargets = new();
+
         public MainDashboardForm()
         {
             Text = "SNAP ERP";
@@ -73,8 +77,25 @@ namespace SNAP
                 (SystemModule.FinanceManagement, "Finance", (Func<AccessLevel, Control>)(level => new FinanceForm(level)), aboveMicroTier),
                 (SystemModule.ReportsManagement, "Reports & Analytics", level => new ReportsForm(level), true));
 
+            // Branch Management is the one module Medium tier adds outright. Below Medium a company
+            // conceptually has a single branch, so the item never appears - and BranchController
+            // carries [RequirePlanTier(PlanTier.Medium)] so hiding it here isn't the only defence.
+            var mediumTier = AppSession.CurrentPlanTier >= PlanTier.Medium;
+
+            // One combined sidebar entry rather than two - SystemAdministration is a pseudo-module
+            // PermissionService resolves as the max of UserManagement/BranchManagement, so the
+            // item shows for anyone who can reach at least one of the two tabs it now hosts (see
+            // SystemAdministrationForm). Each tab still resolves its own module's real access
+            // level here, so a BranchManager's Branches tab comes in as View (report-only) even
+            // though the combined item itself is visible.
             AddGroup("Administration",
-                (SystemModule.UserManagement, "System Administration", (Func<AccessLevel, Control>)(level => new UserManagementForm(level)), true));
+                (SystemModule.SystemAdministration, "System Administration",
+                    (Func<AccessLevel, Control>)(_ => new SystemAdministrationForm(
+                        _permissions.GetAccessLevel(_role, SystemModule.UserManagement),
+                        _permissions.GetAccessLevel(_role, SystemModule.BranchManagement),
+                        mediumTier)),
+                    true),
+                (SystemModule.SubscriptionManagement, "Subscription", level => new SubscriptionForm(level), true));
 
             // Logout sits in its own pinned row below the scrollable/collapsible nav area, so it
             // stays visible no matter how many groups are expanded or how far the nav list scrolls.
@@ -129,7 +150,22 @@ namespace SNAP
             rootLayout.Controls.Add(content, 1, 0);
             Controls.Add(rootLayout);
 
+            // Rows saved while offline go up to MonsterASP on their own once the connection is
+            // back (see AutoSyncService). Stopped on close, which covers both Logout and exit.
+            AutoSyncService.Start(AppSession.CurrentTenantConnectionString);
+            FormClosed += (_, _) => AutoSyncService.Stop();
+
             ShowHome();
+        }
+
+        /// <summary>
+        /// Clicks made while login/first load had the window frozen would otherwise land on the
+        /// Dashboard's cards the instant it appears and open Payments - see InputQueue.
+        /// </summary>
+        protected override void OnShown(EventArgs e)
+        {
+            InputQueue.DiscardPendingUserInput();
+            base.OnShown(e);
         }
 
         /// <summary>
@@ -141,13 +177,13 @@ namespace SNAP
         /// </summary>
         private void AddGroup(string label, params (SystemModule Module, string Text, Func<AccessLevel, Control> Factory, bool TierAllowed)[] items)
         {
-            var visible = new System.Collections.Generic.List<(string Text, AccessLevel Level, Func<AccessLevel, Control> Factory)>();
+            var visible = new System.Collections.Generic.List<(SystemModule Module, string Text, AccessLevel Level, Func<AccessLevel, Control> Factory)>();
             foreach (var item in items)
             {
                 if (!item.TierAllowed) continue;
                 var level = _permissions.GetAccessLevel(_role, item.Module);
                 if (level == AccessLevel.None) continue;
-                visible.Add((item.Text, level, item.Factory));
+                visible.Add((item.Module, item.Text, level, item.Factory));
             }
 
             if (visible.Count == 0) return;
@@ -156,12 +192,14 @@ namespace SNAP
             _sidebar.Controls.Add(groupHeader);
 
             var navItems = new System.Collections.Generic.List<SidebarNavItem>();
-            foreach (var (text, level, factory) in visible)
+            foreach (var (module, text, level, factory) in visible)
             {
                 var navItem = new SidebarNavItem { Text = text, Width = 210, Margin = new Padding(0, 0, 0, 4), Visible = false };
-                navItem.Click += (_, _) => { SetActiveSidebarItem(navItem); ShowModule(() => factory(level)); };
+                void Open() { SetActiveSidebarItem(navItem); ShowModule(() => factory(level)); }
+                navItem.Click += (_, _) => Open();
                 _sidebar.Controls.Add(navItem);
                 navItems.Add(navItem);
+                _navTargets[module] = (groupHeader, navItem, Open);
             }
 
             // FlowLayoutPanel skips invisible children when flowing, so toggling each item's
@@ -182,25 +220,53 @@ namespace SNAP
         {
             ClearContentHost();
 
-            var cardsPanel = new FlowLayoutPanel
+            // Same KPIs and charts as Reports & Analytics, for the current month - each one opens
+            // the module its numbers live in (see DashboardOverview).
+            var overview = new DashboardOverview(module => _navTargets.ContainsKey(module), NavigateTo);
+
+            // "All Branches" gives company-wide numbers; picking one narrows every card to it.
+            // Only built when there's a choice to offer - a branch-bound user is pinned to their
+            // own branch by AppSession.CurrentBranchId and a sub-Medium tenant has no branches.
+            FlowLayoutPanel? toolbar = null;
+            if (BranchFilter.ShowPicker)
             {
-                Dock = DockStyle.Fill,
-                AutoScroll = true,
-                FlowDirection = FlowDirection.LeftToRight,
-                WrapContents = true,
-                BackColor = AppTheme.BackgroundColor,
-                Padding = new Padding(0, 8, 0, 0)
-            };
+                var branchPicker = new RoundedComboBox { Width = 170, Margin = new Padding(0, 2, 0, 0) };
+                BranchFilter.Populate(branchPicker);
+                branchPicker.SelectedIndexChanged += (_, _) =>
+                    overview.Render(BranchFilter.Resolve(BranchFilter.SelectedId(branchPicker)));
 
-            var stats = LoadDashboardStats();
-            cardsPanel.Controls.Add(CreateStatCard("Upcoming Sessions", stats.UpcomingSessions));
-            cardsPanel.Controls.Add(CreateStatCard("Bookings this month", stats.BookingsThisMonth));
-            cardsPanel.Controls.Add(CreateStatCard("Revenue this month", stats.RevenueThisMonth));
-            cardsPanel.Controls.Add(CreateStatCard("Pending payments", stats.PendingPayments));
+                toolbar = new FlowLayoutPanel
+                {
+                    Dock = DockStyle.Fill,
+                    Padding = new Padding(0, 12, 0, 12),
+                    FlowDirection = FlowDirection.LeftToRight,
+                    WrapContents = false,
+                    BackColor = AppTheme.BackgroundColor
+                };
+                toolbar.Controls.Add(branchPicker);
+            }
 
-            var header = AppTheme.CreatePageHeader("Dashboard", "Overview of today's bookings, revenue, and pending items.");
-            _contentHost.Controls.Add(AppTheme.BuildPage(header, null, cardsPanel));
+            // Opens on "All Branches" for a company-wide role, or the user's own branch otherwise.
+            overview.Render(AppSession.CurrentBranchId);
+
+            var (monthStart, _) = DashboardOverview.CurrentMonth();
+            var header = AppTheme.CreatePageHeader("Dashboard",
+                $"{monthStart:MMMM yyyy} at a glance - click any card or chart to open its records.");
+            _contentHost.Controls.Add(AppTheme.BuildPage(header, toolbar, overview));
             RefreshLayout();
+        }
+
+        /// <summary>
+        /// Opens a module exactly as clicking its sidebar item would - expanding its group if
+        /// collapsed so the highlighted item is actually visible. A module that isn't in the
+        /// sidebar (tier- or permission-hidden) is ignored; the Dashboard never offers one anyway.
+        /// </summary>
+        private void NavigateTo(SystemModule module)
+        {
+            if (!_navTargets.TryGetValue(module, out var target)) return;
+
+            if (!target.Header.Expanded) target.Header.Expanded = true;
+            target.Open();
         }
 
         /// <summary>
@@ -258,63 +324,6 @@ namespace SNAP
             Close();
         }
 
-        private sealed record DashboardStats(string UpcomingSessions, string BookingsThisMonth, string RevenueThisMonth, string PendingPayments);
-
-        private static DashboardStats LoadDashboardStats()
-        {
-            const string na = "—";
-            try
-            {
-                var connectionString = AppSession.CurrentTenantConnectionString ?? AppDbConfig.TenantErpConnectionString;
-                var options = new DbContextOptionsBuilder<TenantErpDbContext>()
-                    .UseSqlServer(connectionString)
-                    .Options;
-
-                using var db = new TenantErpDbContext(options);
-
-                var today = DateTime.Today;
-                var monthStart = new DateTime(today.Year, today.Month, 1);
-                var monthEnd = monthStart.AddMonths(1);
-
-                var upcomingSessions = db.Bookings.Count(b =>
-                    b.SessionDate.Date >= today && b.Status != BookingStatus.Cancelled);
-
-                var bookingsThisMonth = db.Bookings.Count(b =>
-                    b.SessionDate >= monthStart && b.SessionDate < monthEnd && b.Status != BookingStatus.Cancelled);
-
-                // Payments + Product Sales, so this never silently undercounts real revenue now
-                // that Product Sales exist as a second revenue stream (matches Reports' Total
-                // Income stat card, which was updated for the same reason).
-                var paymentRevenue = db.Payments
-                    .Where(p => !p.IsDeleted && p.PaymentDate >= monthStart && p.PaymentDate < monthEnd)
-                    .Sum(p => (decimal?)p.AmountPaid) ?? 0m;
-                var productSaleRevenue = db.ProductSales
-                    .Where(p => !p.IsDeleted && p.SaleDate >= monthStart && p.SaleDate < monthEnd)
-                    .Sum(p => (decimal?)p.TotalAmount) ?? 0m;
-                var revenueThisMonth = paymentRevenue + productSaleRevenue;
-
-                var totalsByBooking = db.Payments
-                    .GroupBy(p => p.BookingId)
-                    .Select(g => new { BookingId = g.Key, Total = g.Sum(p => p.AmountPaid) })
-                    .ToDictionary(x => x.BookingId, x => x.Total);
-
-                var pendingPayments = db.Bookings
-                    .Where(b => b.Status != BookingStatus.Cancelled)
-                    .AsEnumerable()
-                    .Count(b => b.PriceSnapshot - totalsByBooking.GetValueOrDefault(b.BookingId) > 0);
-
-                return new DashboardStats(
-                    upcomingSessions.ToString(),
-                    bookingsThisMonth.ToString(),
-                    $"₱{revenueThisMonth:N0}",
-                    pendingPayments.ToString());
-            }
-            catch
-            {
-                return new DashboardStats(na, na, na, na);
-            }
-        }
-
         /// <summary>
         /// Tracks which sidebar item is "on" via SidebarNavItem's own active-state paint,
         /// restoring the previously active item first.
@@ -328,45 +337,6 @@ namespace SNAP
 
             item.IsActive = true;
             _activeSidebarItem = item;
-        }
-
-        private static RoundedPanel CreateStatCard(string title, string value)
-        {
-            var card = new RoundedPanel
-            {
-                Width = 220,
-                Height = 110,
-                BackColor = AppTheme.WhiteColor,
-                Padding = new Padding(18),
-                Margin = new Padding(0, 0, 16, 16)
-            };
-
-            var labelTitle = new Label
-            {
-                Text = title,
-                ForeColor = AppTheme.TextSecondaryColor,
-                Font = AppTheme.SecondaryFont,
-                AutoSize = false,
-                Width = 184,
-                Height = 24,
-                Location = new Point(18, 18)
-            };
-
-            var valueLabel = new Label
-            {
-                Text = value,
-                ForeColor = AppTheme.TextPrimaryColor,
-                Font = new Font("Segoe UI", 20, FontStyle.Bold),
-                AutoSize = false,
-                Width = 184,
-                Height = 56,
-                Location = new Point(18, 46),
-                TextAlign = ContentAlignment.TopLeft
-            };
-
-            card.Controls.Add(labelTitle);
-            card.Controls.Add(valueLabel);
-            return card;
         }
     }
 }

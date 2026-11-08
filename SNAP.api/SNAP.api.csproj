@@ -12,12 +12,10 @@
 			<IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
 		</PackageReference>
 		<PackageReference Include="Microsoft.EntityFrameworkCore.SqlServer" Version="10.0.12" />
+		<PackageReference Include="BCrypt.Net-Core" Version="1.6.0" />
 	</ItemGroup>
 	<ItemGroup>
 		<ProjectReference Include="..\SNAP.domain\SNAP.domain.csproj" />
 		<ProjectReference Include="..\SNAP.infrastructure\SNAP.infrastructure.csproj" />
-	</ItemGroup>
-	<ItemGroup>
-		<Folder Include="Controllers\" />
 	</ItemGroup>
 </Project>

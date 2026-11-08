@@ -25,5 +25,14 @@ namespace SNAP.domain.entities
         public string? Summary { get; set; }
 
         public DateTime Timestamp { get; set; } = DateTime.UtcNow;
+
+        /// <summary>
+        /// Inherited from the audited entity when that entity is branch-scoped, so the Audit Log
+        /// can be filtered by branch. Null for company-wide entities (Customer, Package, payroll).
+        /// </summary>
+        public int? BranchId { get; set; }
+
+        public Branch? Branch { get; set; }
+
     }
 }

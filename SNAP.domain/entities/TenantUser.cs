@@ -21,5 +21,15 @@ namespace SNAP.domain.entities
         public decimal? MonthlySalary { get; set; }
 
         public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
+
+        /// <summary>
+        /// The branch this user works at. Required in practice for Staff/Photographer/BranchManager,
+        /// whose data access is filtered to it; null for the company-wide roles (Admin,
+        /// FinanceManager, SuperAdmin) which are not tied to any one location.
+        /// </summary>
+        public int? BranchId { get; set; }
+
+        public Branch? Branch { get; set; }
+
     }
 }

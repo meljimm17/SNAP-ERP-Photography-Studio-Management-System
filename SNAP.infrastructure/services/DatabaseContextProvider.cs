@@ -30,7 +30,7 @@ namespace SNAP.infrastructure.services
             if (_masterContext == null)
             {
                 var options = new DbContextOptionsBuilder<MasterErpDbContext>()
-                    .UseSqlServer(_masterConnectionString)
+                    .UseSqlServer(_masterConnectionString, sql => sql.EnableRetryOnFailure(3))
                     .Options;
 
                 _masterContext = new MasterErpDbContext(options);
@@ -46,7 +46,7 @@ namespace SNAP.infrastructure.services
         {
             // Always create a new instance for tenant context to support multi-tenant scenarios
             var options = new DbContextOptionsBuilder<TenantErpDbContext>()
-                .UseSqlServer(connectionString)
+                .UseSqlServer(connectionString, sql => sql.EnableRetryOnFailure(3))
                 .Options;
 
             return new TenantErpDbContext(options);
@@ -60,7 +60,7 @@ namespace SNAP.infrastructure.services
             if (_tenantContext == null)
             {
                 var options = new DbContextOptionsBuilder<TenantErpDbContext>()
-                    .UseSqlServer(defaultTenantConnectionString)
+                    .UseSqlServer(defaultTenantConnectionString, sql => sql.EnableRetryOnFailure(3))
                     .Options;
 
                 _tenantContext = new TenantErpDbContext(options);

@@ -14,7 +14,10 @@ var masterErpConnectionString = string.IsNullOrWhiteSpace(configuredMasterErp)
     ? Environment.GetEnvironmentVariable("SNAP_MASTERERP_CONNECTIONSTRING") ?? string.Empty
     : configuredMasterErp;
 
-var configuredTenantErp = builder.Configuration.GetConnectionString("TenantErp");
+// Tenant A doubles as the design-time/fallback tenant (see ConnectionStrings.TenantErpDefault's
+// remarks) - there is no separate generic "TenantErp" key any more, so this reads the same key
+// Tenant A's own real usage does, rather than a second config entry pointing at the same database.
+var configuredTenantErp = builder.Configuration.GetConnectionString("TenantErp_TENANT_A");
 var tenantErpConnectionString = string.IsNullOrWhiteSpace(configuredTenantErp)
     ? Environment.GetEnvironmentVariable("SNAP_TENANTERP_CONNECTIONSTRING") ?? masterErpConnectionString
     : configuredTenantErp;
@@ -46,6 +49,7 @@ if (string.IsNullOrWhiteSpace(masterErpConnectionString))
 
 builder.Services.AddHttpContextAccessor();
 builder.Services.AddScoped<TenantDbContextFactory>();
+builder.Services.AddScoped<BranchScope>();
 builder.Services.AddSingleton<JwtTokenService>();
 
 var jwtKey = builder.Configuration["Jwt:Key"]
@@ -115,16 +119,15 @@ app.UseExceptionHandler(exceptionHandlerApp => exceptionHandlerApp.Run(async con
     await context.Response.WriteAsJsonAsync(new { message });
 }));
 
-app.UseHttpsRedirection();
+// Dev only skips this: VS's "https" profile also listens on http://localhost:5254 (the WinForms
+// ApiBaseUrl default), and HttpClient strips the Authorization header when following the 307 to
+// https - every authenticated call then arrives tokenless and fails with an empty-body 401.
+if (!app.Environment.IsDevelopment())
+{
+    app.UseHttpsRedirection();
+}
 app.UseAuthentication();
 app.UseAuthorization();
 app.MapControllers();
-
-app.MapPost("/companies", async (Company company, MasterErpDbContext db) =>
-{
-    db.Companies.Add(company);
-    await db.SaveChangesAsync();
-    return Results.Created($"/companies/{company.CompanyId}", company);
-});
 
 app.Run();

@@ -11,7 +11,20 @@ namespace SNAP.Controls
     public class RoundedTextBox : Control
     {
         private readonly TextBox _textBox;
+        private readonly Label _revealToggle;
         private bool _isFocused = false;
+
+        // Whether this field was ever configured as a password field at all (set once, via the
+        // UseSystemPasswordChar setter) - independent of _textBox.UseSystemPasswordChar's current
+        // live value, which the reveal toggle flips back and forth without un-configuring the
+        // field itself. Only a password field ever shows the eye icon.
+        private bool _isPasswordField;
+
+        // Segoe MDL2 Assets glyphs - the same ones Windows' own built-in password-reveal button
+        // uses (e.g. the Microsoft Account sign-in box), so this reads as a native control rather
+        // than an invented one.
+        private const string RevealGlyph = ""; // "View" - eye
+        private const string HideGlyph = "";   // "Hide" - eye with a line through it
 
         public RoundedTextBox()
         {
@@ -44,7 +57,33 @@ namespace SNAP.Controls
 
             _textBox.TextChanged += (s, e) => OnTextChanged(EventArgs.Empty);
 
+            // Only ever shown on a password field (see UseSystemPasswordChar's setter) - lets
+            // someone unsure they typed their password correctly check it without retyping, the
+            // same reveal-password convention every modern login form uses.
+            _revealToggle = new Label
+            {
+                Text = RevealGlyph,
+                Font = new Font("Segoe MDL2 Assets", 11f),
+                ForeColor = AppTheme.TextSecondaryColor,
+                BackColor = AppTheme.WhiteColor,
+                AutoSize = false,
+                TextAlign = ContentAlignment.MiddleCenter,
+                Cursor = Cursors.Hand,
+                Visible = false
+            };
+            _revealToggle.Click += (_, _) => ToggleReveal();
+            _revealToggle.MouseEnter += (_, _) => _revealToggle.ForeColor = AppTheme.NavyColor;
+            _revealToggle.MouseLeave += (_, _) => _revealToggle.ForeColor = AppTheme.TextSecondaryColor;
+
             Controls.Add(_textBox);
+            Controls.Add(_revealToggle);
+        }
+
+        private void ToggleReveal()
+        {
+            _textBox.UseSystemPasswordChar = !_textBox.UseSystemPasswordChar;
+            _revealToggle.Text = _textBox.UseSystemPasswordChar ? RevealGlyph : HideGlyph;
+            _textBox.Focus();
         }
 
         /// <summary>
@@ -71,14 +110,24 @@ namespace SNAP.Controls
         }
 
         /// <summary>
-        /// Gets or sets whether the text box uses password masking.
+        /// Gets or sets whether the text box uses password masking. Setting this true is also what
+        /// turns this into "a password field" for good - it shows the reveal-toggle eye icon, which
+        /// stays available even after someone clicks it to peek at what they typed (clicking only
+        /// flips the live masking state below, not this flag).
         /// </summary>
         [Browsable(false)]
         [DesignerSerializationVisibility(DesignerSerializationVisibility.Hidden)]
         public bool UseSystemPasswordChar
         {
             get => _textBox.UseSystemPasswordChar;
-            set => _textBox.UseSystemPasswordChar = value;
+            set
+            {
+                _textBox.UseSystemPasswordChar = value;
+                if (value) _isPasswordField = true;
+                _revealToggle.Visible = _isPasswordField;
+                _revealToggle.Text = _textBox.UseSystemPasswordChar ? RevealGlyph : HideGlyph;
+                PositionChildren();
+            }
         }
 
         /// <summary>
@@ -117,14 +166,32 @@ namespace SNAP.Controls
         protected override void OnResize(EventArgs e)
         {
             base.OnResize(e);
+            PositionChildren();
+        }
 
-            // Guard against null - can be called during constructor before _textBox is initialized
-            if (_textBox == null)
+        /// <summary>
+        /// Lays out the inner textbox and, on a password field, the reveal-toggle icon that eats
+        /// into its right edge - called on resize and whenever the icon's visibility changes, since
+        /// turning it on/off changes how much width the textbox itself gets.
+        /// </summary>
+        private void PositionChildren()
+        {
+            // Guard against null - can be called during the base Control constructor's own resize
+            // before this constructor has created either child yet.
+            if (_textBox == null || _revealToggle == null)
                 return;
 
-            // Position the inner textbox with padding
+            const int iconWidth = 32;
+            var textBoxWidth = Width - (AppTheme.TextBoxPadding * 2) - (_revealToggle.Visible ? iconWidth : 0);
+
             _textBox.Location = new Point(AppTheme.TextBoxPadding, (Height - _textBox.Height) / 2);
-            _textBox.Width = Width - (AppTheme.TextBoxPadding * 2);
+            _textBox.Width = Math.Max(0, textBoxWidth);
+
+            if (_revealToggle.Visible)
+            {
+                _revealToggle.Size = new Size(iconWidth, Height - 4);
+                _revealToggle.Location = new Point(Width - iconWidth - 2, 2);
+            }
 
             // Update region for rounded clipping
             using (var path = AppTheme.CreateRoundedRectangle(
@@ -139,6 +206,8 @@ namespace SNAP.Controls
         {
             base.OnEnabledChanged(e);
             _textBox.Enabled = Enabled;
+            _revealToggle.Enabled = Enabled;
+            _revealToggle.Cursor = Enabled ? Cursors.Hand : Cursors.Default;
             BackColor = Enabled ? AppTheme.BackgroundColor : Color.LightGray;
             Invalidate();
         }

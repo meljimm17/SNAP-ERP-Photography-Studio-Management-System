@@ -30,6 +30,7 @@ namespace SNAP.infrastructure.Data
         public DbSet<PurchaseOrder> PurchaseOrders => Set<PurchaseOrder>();
         public DbSet<PurchaseOrderLine> PurchaseOrderLines => Set<PurchaseOrderLine>();
         public DbSet<OwnerTransaction> OwnerTransactions => Set<OwnerTransaction>();
+        public DbSet<Branch> Branches => Set<Branch>();
 
         protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder)
         {
@@ -285,6 +286,45 @@ namespace SNAP.infrastructure.Data
                     .HasForeignKey(x => x.TenantUserId)
                     .OnDelete(DeleteBehavior.SetNull);
             });
+
+            modelBuilder.Entity<Branch>(entity =>
+            {
+                entity.HasKey(x => x.BranchId);
+                entity.Property(x => x.BranchName).IsRequired().HasMaxLength(200);
+                entity.Property(x => x.Address).HasMaxLength(500);
+                entity.Property(x => x.ContactNumber).HasMaxLength(50);
+                entity.Property(x => x.IsActive).HasDefaultValue(true);
+            });
+
+            // Every branch relationship is Restrict, never Cascade: a branch that still holds
+            // bookings, stock or expenses must not be deletable out from under them (branches are
+            // retired via IsActive instead). Restrict also keeps SQL Server from seeing multiple
+            // cascade paths into the same table, which is what broke an earlier migration here.
+            modelBuilder.Entity<Booking>()
+                .HasOne(x => x.Branch).WithMany().HasForeignKey(x => x.BranchId)
+                .OnDelete(DeleteBehavior.Restrict);
+            modelBuilder.Entity<Inventory>()
+                .HasOne(x => x.Branch).WithMany().HasForeignKey(x => x.BranchId)
+                .OnDelete(DeleteBehavior.Restrict);
+            modelBuilder.Entity<Equipment>()
+                .HasOne(x => x.Branch).WithMany().HasForeignKey(x => x.BranchId)
+                .OnDelete(DeleteBehavior.Restrict);
+            modelBuilder.Entity<Expense>()
+                .HasOne(x => x.Branch).WithMany().HasForeignKey(x => x.BranchId)
+                .OnDelete(DeleteBehavior.Restrict);
+            modelBuilder.Entity<PurchaseOrder>()
+                .HasOne(x => x.Branch).WithMany().HasForeignKey(x => x.BranchId)
+                .OnDelete(DeleteBehavior.Restrict);
+            modelBuilder.Entity<ProductSale>()
+                .HasOne(x => x.Branch).WithMany().HasForeignKey(x => x.BranchId)
+                .OnDelete(DeleteBehavior.Restrict);
+            modelBuilder.Entity<TenantUser>()
+                .HasOne(x => x.Branch).WithMany().HasForeignKey(x => x.BranchId)
+                .OnDelete(DeleteBehavior.Restrict);
+            modelBuilder.Entity<AuditLog>()
+                .HasOne(x => x.Branch).WithMany().HasForeignKey(x => x.BranchId)
+                .OnDelete(DeleteBehavior.Restrict);
         }
+
     }
 }

@@ -38,6 +38,9 @@ namespace SNAP.infrastructure.Migrations.TenantErpDb
                         .HasMaxLength(200)
                         .HasColumnType("nvarchar(200)");
 
+                    b.Property<int?>("BranchId")
+                        .HasColumnType("int");
+
                     b.Property<int>("EntityId")
                         .HasColumnType("int");
 
@@ -58,6 +61,8 @@ namespace SNAP.infrastructure.Migrations.TenantErpDb
 
                     b.HasKey("AuditLogId");
 
+                    b.HasIndex("BranchId");
+
                     b.HasIndex("EntityName");
 
                     b.HasIndex("TenantUserId");
@@ -76,6 +81,9 @@ namespace SNAP.infrastructure.Migrations.TenantErpDb
                     SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("BookingId"));
 
                     b.Property<int?>("AssignedPhotographerUserId")
+                        .HasColumnType("int");
+
+                    b.Property<int>("BranchId")
                         .HasColumnType("int");
 
                     b.Property<DateTime>("CreatedAt")
@@ -122,11 +130,50 @@ namespace SNAP.infrastructure.Migrations.TenantErpDb
 
                     b.HasIndex("AssignedPhotographerUserId");
 
+                    b.HasIndex("BranchId");
+
                     b.HasIndex("CustomerId");
 
                     b.HasIndex("PackageId");
 
                     b.ToTable("Bookings");
+                });
+
+            modelBuilder.Entity("SNAP.domain.entities.Branch", b =>
+                {
+                    b.Property<int>("BranchId")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("BranchId"));
+
+                    b.Property<string>("Address")
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
+                    b.Property<string>("BranchName")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<string>("ContactNumber")
+                        .HasMaxLength(50)
+                        .HasColumnType("nvarchar(50)");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<bool>("IsActive")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bit")
+                        .HasDefaultValue(true);
+
+                    b.Property<bool>("IsMainBranch")
+                        .HasColumnType("bit");
+
+                    b.HasKey("BranchId");
+
+                    b.ToTable("Branches");
                 });
 
             modelBuilder.Entity("SNAP.domain.entities.Customer", b =>
@@ -182,6 +229,9 @@ namespace SNAP.infrastructure.Migrations.TenantErpDb
                     b.Property<int?>("AssignedToUserId")
                         .HasColumnType("int");
 
+                    b.Property<int>("BranchId")
+                        .HasColumnType("int");
+
                     b.Property<int>("Category")
                         .ValueGeneratedOnAdd()
                         .HasColumnType("int")
@@ -211,6 +261,8 @@ namespace SNAP.infrastructure.Migrations.TenantErpDb
 
                     b.HasIndex("AssignedToUserId");
 
+                    b.HasIndex("BranchId");
+
                     b.ToTable("Equipment");
                 });
 
@@ -224,6 +276,9 @@ namespace SNAP.infrastructure.Migrations.TenantErpDb
 
                     b.Property<decimal>("Amount")
                         .HasColumnType("decimal(18,2)");
+
+                    b.Property<int>("BranchId")
+                        .HasColumnType("int");
 
                     b.Property<int>("Category")
                         .HasColumnType("int");
@@ -262,6 +317,8 @@ namespace SNAP.infrastructure.Migrations.TenantErpDb
 
                     b.HasKey("ExpenseId");
 
+                    b.HasIndex("BranchId");
+
                     b.HasIndex("EquipmentId");
 
                     b.HasIndex("PurchaseOrderId");
@@ -278,6 +335,9 @@ namespace SNAP.infrastructure.Migrations.TenantErpDb
                         .HasColumnType("int");
 
                     SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("InventoryId"));
+
+                    b.Property<int>("BranchId")
+                        .HasColumnType("int");
 
                     b.Property<string>("Category")
                         .HasMaxLength(100)
@@ -315,6 +375,8 @@ namespace SNAP.infrastructure.Migrations.TenantErpDb
                         .HasColumnType("decimal(18,2)");
 
                     b.HasKey("InventoryId");
+
+                    b.HasIndex("BranchId");
 
                     b.HasIndex("SupplierId");
 
@@ -436,6 +498,9 @@ namespace SNAP.infrastructure.Migrations.TenantErpDb
                     b.Property<int?>("BookingId")
                         .HasColumnType("int");
 
+                    b.Property<int>("BranchId")
+                        .HasColumnType("int");
+
                     b.Property<DateTime>("CreatedAt")
                         .HasColumnType("datetime2");
 
@@ -469,6 +534,8 @@ namespace SNAP.infrastructure.Migrations.TenantErpDb
 
                     b.HasIndex("BookingId");
 
+                    b.HasIndex("BranchId");
+
                     b.HasIndex("CustomerId");
 
                     b.HasIndex("InventoryId");
@@ -483,6 +550,9 @@ namespace SNAP.infrastructure.Migrations.TenantErpDb
                         .HasColumnType("int");
 
                     SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("PurchaseOrderId"));
+
+                    b.Property<int>("BranchId")
+                        .HasColumnType("int");
 
                     b.Property<DateTime>("CreatedAt")
                         .HasColumnType("datetime2");
@@ -510,6 +580,8 @@ namespace SNAP.infrastructure.Migrations.TenantErpDb
                         .HasColumnType("int");
 
                     b.HasKey("PurchaseOrderId");
+
+                    b.HasIndex("BranchId");
 
                     b.HasIndex("CreatedByUserId");
 
@@ -571,6 +643,9 @@ namespace SNAP.infrastructure.Migrations.TenantErpDb
                         .HasColumnType("bit")
                         .HasDefaultValue(false);
 
+                    b.Property<bool>("IsPaid")
+                        .HasColumnType("bit");
+
                     b.Property<decimal>("NetAmount")
                         .HasColumnType("decimal(18,2)");
 
@@ -580,6 +655,9 @@ namespace SNAP.infrastructure.Migrations.TenantErpDb
 
                     b.Property<decimal>("PagIbigDeduction")
                         .HasColumnType("decimal(18,2)");
+
+                    b.Property<DateTime?>("PaidDate")
+                        .HasColumnType("datetime2");
 
                     b.Property<DateTime>("PayPeriodEnd")
                         .HasColumnType("datetime2");
@@ -684,6 +762,9 @@ namespace SNAP.infrastructure.Migrations.TenantErpDb
 
                     SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("UserId"));
 
+                    b.Property<int?>("BranchId")
+                        .HasColumnType("int");
+
                     b.Property<DateTime>("CreatedAt")
                         .HasColumnType("datetime2");
 
@@ -715,6 +796,8 @@ namespace SNAP.infrastructure.Migrations.TenantErpDb
 
                     b.HasKey("UserId");
 
+                    b.HasIndex("BranchId");
+
                     b.HasIndex("Username")
                         .IsUnique();
 
@@ -723,10 +806,17 @@ namespace SNAP.infrastructure.Migrations.TenantErpDb
 
             modelBuilder.Entity("SNAP.domain.entities.AuditLog", b =>
                 {
+                    b.HasOne("SNAP.domain.entities.Branch", "Branch")
+                        .WithMany()
+                        .HasForeignKey("BranchId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
                     b.HasOne("SNAP.domain.entities.TenantUser", "TenantUser")
                         .WithMany()
                         .HasForeignKey("TenantUserId")
                         .OnDelete(DeleteBehavior.SetNull);
+
+                    b.Navigation("Branch");
 
                     b.Navigation("TenantUser");
                 });
@@ -737,6 +827,12 @@ namespace SNAP.infrastructure.Migrations.TenantErpDb
                         .WithMany()
                         .HasForeignKey("AssignedPhotographerUserId")
                         .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("SNAP.domain.entities.Branch", "Branch")
+                        .WithMany()
+                        .HasForeignKey("BranchId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
 
                     b.HasOne("SNAP.domain.entities.Customer", "Customer")
                         .WithMany()
@@ -752,6 +848,8 @@ namespace SNAP.infrastructure.Migrations.TenantErpDb
 
                     b.Navigation("AssignedPhotographer");
 
+                    b.Navigation("Branch");
+
                     b.Navigation("Customer");
 
                     b.Navigation("Package");
@@ -764,11 +862,25 @@ namespace SNAP.infrastructure.Migrations.TenantErpDb
                         .HasForeignKey("AssignedToUserId")
                         .OnDelete(DeleteBehavior.SetNull);
 
+                    b.HasOne("SNAP.domain.entities.Branch", "Branch")
+                        .WithMany()
+                        .HasForeignKey("BranchId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
                     b.Navigation("AssignedToUser");
+
+                    b.Navigation("Branch");
                 });
 
             modelBuilder.Entity("SNAP.domain.entities.Expense", b =>
                 {
+                    b.HasOne("SNAP.domain.entities.Branch", "Branch")
+                        .WithMany()
+                        .HasForeignKey("BranchId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
                     b.HasOne("SNAP.domain.entities.Equipment", "Equipment")
                         .WithMany()
                         .HasForeignKey("EquipmentId")
@@ -784,6 +896,8 @@ namespace SNAP.infrastructure.Migrations.TenantErpDb
                         .HasForeignKey("SupplierId")
                         .OnDelete(DeleteBehavior.SetNull);
 
+                    b.Navigation("Branch");
+
                     b.Navigation("Equipment");
 
                     b.Navigation("PurchaseOrder");
@@ -793,10 +907,18 @@ namespace SNAP.infrastructure.Migrations.TenantErpDb
 
             modelBuilder.Entity("SNAP.domain.entities.Inventory", b =>
                 {
+                    b.HasOne("SNAP.domain.entities.Branch", "Branch")
+                        .WithMany()
+                        .HasForeignKey("BranchId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
                     b.HasOne("SNAP.domain.entities.Supplier", "Supplier")
                         .WithMany()
                         .HasForeignKey("SupplierId")
                         .OnDelete(DeleteBehavior.SetNull);
+
+                    b.Navigation("Branch");
 
                     b.Navigation("Supplier");
                 });
@@ -819,6 +941,12 @@ namespace SNAP.infrastructure.Migrations.TenantErpDb
                         .HasForeignKey("BookingId")
                         .OnDelete(DeleteBehavior.SetNull);
 
+                    b.HasOne("SNAP.domain.entities.Branch", "Branch")
+                        .WithMany()
+                        .HasForeignKey("BranchId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
                     b.HasOne("SNAP.domain.entities.Customer", "Customer")
                         .WithMany()
                         .HasForeignKey("CustomerId")
@@ -832,6 +960,8 @@ namespace SNAP.infrastructure.Migrations.TenantErpDb
 
                     b.Navigation("Booking");
 
+                    b.Navigation("Branch");
+
                     b.Navigation("Customer");
 
                     b.Navigation("Inventory");
@@ -839,6 +969,12 @@ namespace SNAP.infrastructure.Migrations.TenantErpDb
 
             modelBuilder.Entity("SNAP.domain.entities.PurchaseOrder", b =>
                 {
+                    b.HasOne("SNAP.domain.entities.Branch", "Branch")
+                        .WithMany()
+                        .HasForeignKey("BranchId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
                     b.HasOne("SNAP.domain.entities.TenantUser", "CreatedByUser")
                         .WithMany()
                         .HasForeignKey("CreatedByUserId")
@@ -854,6 +990,8 @@ namespace SNAP.infrastructure.Migrations.TenantErpDb
                         .HasForeignKey("SupplierId")
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
+
+                    b.Navigation("Branch");
 
                     b.Navigation("CreatedByUser");
 
@@ -890,6 +1028,16 @@ namespace SNAP.infrastructure.Migrations.TenantErpDb
                         .IsRequired();
 
                     b.Navigation("TenantUser");
+                });
+
+            modelBuilder.Entity("SNAP.domain.entities.TenantUser", b =>
+                {
+                    b.HasOne("SNAP.domain.entities.Branch", "Branch")
+                        .WithMany()
+                        .HasForeignKey("BranchId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.Navigation("Branch");
                 });
 
             modelBuilder.Entity("SNAP.domain.entities.PurchaseOrder", b =>

@@ -18,12 +18,12 @@
 
 ### Master ERP
 ```
-Server=db67905.public.databaseeasp.net,1433;Database=db67905;User Id=db67905;Password=rq+3ATs+95Lg+;Encrypt=True;TrustServerCertificate=True;MultipleActiveResultSets=True;
+Server=db67905.public.databaseeasp.net,1433;Database=db67905;User Id=db67905;Password=<MASTER_DB_PASSWORD>;Encrypt=True;TrustServerCertificate=True;MultipleActiveResultSets=True;
 ```
 
 ### Tenant ERP
 ```
-Server=db67904.public.databaseeasp.net,1433;Database=db67904;User Id=db67904;Password=D17-2F!sal4lQ;Encrypt=True;TrustServerCertificate=True;MultipleActiveResultSets=True;
+Server=db67904.public.databaseeasp.net,1433;Database=db67904;User Id=db67904;Password=<TENANT_DB_PASSWORD>;Encrypt=True;TrustServerCertificate=True;MultipleActiveResultSets=True;
 ```
 
 ---
@@ -40,7 +40,7 @@ powershell -ExecutionPolicy Bypass -File migrate-databases.ps1
 - **Server:** `db67905.public.databaseeasp.net,1433`
 - **Auth:** SQL Server Authentication
 - **Login:** `db67905`
-- **Password:** `rq+3ATs+95Lg+`
+- **Password:** `<MASTER_DB_PASSWORD>`
 
 ### 3. Run Application
 ```bash

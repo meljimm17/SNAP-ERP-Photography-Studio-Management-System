@@ -10,6 +10,8 @@ namespace SNAP.domain.dtos
 
     public sealed class InventoryRow
     {
+        public int BranchId { get; set; }
+        public string BranchName { get; set; } = string.Empty;
         public int InventoryId { get; set; }
         public string ItemName { get; set; } = string.Empty;
         public string Category { get; set; } = string.Empty;
@@ -31,6 +33,8 @@ namespace SNAP.domain.dtos
 
     public sealed class PurchaseOrderRow
     {
+        public int BranchId { get; set; }
+        public string BranchName { get; set; } = string.Empty;
         public int PurchaseOrderId { get; set; }
         public string Supplier { get; set; } = string.Empty;
         public string Status { get; set; } = string.Empty;
@@ -58,7 +62,8 @@ namespace SNAP.domain.dtos
 
     // ----- Request bodies for the API's write endpoints -----
 
-    public sealed record AddInventoryItemRequest(string ItemName, string? Category, decimal QuantityOnHand, decimal ReorderLevel, int? SupplierId, bool IsForSale, decimal? SellingPrice);
+    /// <summary>BranchId is ignored for a branch-bound caller, who always writes to their own branch.</summary>
+    public sealed record AddInventoryItemRequest(string ItemName, string? Category, decimal QuantityOnHand, decimal ReorderLevel, int? SupplierId, bool IsForSale, decimal? SellingPrice, int? BranchId = null);
 
     public sealed record UpdateInventoryItemRequest(string ItemName, string? Category, decimal QuantityOnHand, decimal ReorderLevel, int? SupplierId, bool IsForSale, decimal? SellingPrice);
 
@@ -70,7 +75,8 @@ namespace SNAP.domain.dtos
 
     public sealed record UpdateSupplierRequest(string SupplierName, string? ContactPerson, string? ContactNumber, string? Notes);
 
-    public sealed record AddPurchaseOrderRequest(int SupplierId, PurchaseOrderStatus Status, DateTime OrderDate, DateTime? ExpectedDate, string? Notes, List<PurchaseOrderLineInput> Lines);
+    /// <summary>BranchId is ignored for a branch-bound caller, who always writes to their own branch.</summary>
+    public sealed record AddPurchaseOrderRequest(int SupplierId, PurchaseOrderStatus Status, DateTime OrderDate, DateTime? ExpectedDate, string? Notes, List<PurchaseOrderLineInput> Lines, int? BranchId = null);
 
     public sealed record UpdatePurchaseOrderRequest(int SupplierId, PurchaseOrderStatus Status, DateTime OrderDate, DateTime? ExpectedDate, string? Notes, List<PurchaseOrderLineInput> Lines);
 

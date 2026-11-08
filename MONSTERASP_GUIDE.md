@@ -126,7 +126,7 @@ MonsterASP restricts database access by IP address for security.
 Server=db67905.public.databaseeasp.net,1433;
 Database=db67905;
 User Id=db67905;
-Password=rq+3ATs+95Lg+;
+Password=<MASTER_DB_PASSWORD>;
 Encrypt=True;
 TrustServerCertificate=True;
 MultipleActiveResultSets=True;
@@ -137,7 +137,7 @@ MultipleActiveResultSets=True;
 Server=db67904.public.databaseeasp.net,1433;
 Database=db67904;
 User Id=db67904;
-Password=D17-2F!sal4lQ;
+Password=<TENANT_DB_PASSWORD>;
 Encrypt=True;
 TrustServerCertificate=True;
 MultipleActiveResultSets=True;
@@ -308,10 +308,10 @@ class Program
 	static void Main()
 	{
 		// Test Master DB
-		TestConnection("db67905.public.databaseeasp.net", "db67905", "db67905", "rq+3ATs+95Lg+");
+		TestConnection("db67905.public.databaseeasp.net", "db67905", "db67905", "<MASTER_DB_PASSWORD>");
 
 		// Test Tenant DB
-		TestConnection("db67904.public.databaseeasp.net", "db67904", "db67904", "D17-2F!sal4lQ");
+		TestConnection("db67904.public.databaseeasp.net", "db67904", "db67904", "<TENANT_DB_PASSWORD>");
 	}
 
 	static void TestConnection(string server, string database, string login, string password)

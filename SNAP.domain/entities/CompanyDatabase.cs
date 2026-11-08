@@ -15,14 +15,27 @@ namespace SNAP.domain.entities
         public string DatabaseName { get; set; } = string.Empty;
 
         /// <summary>
-        /// Optional per-tenant key used to look up this company's database credentials
-        /// (e.g. "tenant_a" -> SNAP_TENANTDB_PASSWORD_TENANT_A). Null means "use the
-        /// shared/legacy credential env vars", so existing single-tenant setups are unaffected.
+        /// Legacy/descriptive only - no longer used to resolve the actual connection string (see
+        /// ConnectionStrings.BuildTenantConnectionString's remarks). Kept on existing rows rather
+        /// than dropped outright.
         /// </summary>
         public string? CredentialKey { get; set; }
 
         // Changed from isActive to IsActive (PascalCase)
         public bool IsActive { get; set; } = true;
+
+        /// <summary>
+        /// This company's own hosted (MonsterASP) database, paired with the local one above the
+        /// same way TenantSyncService pairs a local write to its remote push target - except
+        /// stored per-company here instead of a handful of hardcoded appsettings.json entries, so
+        /// any company created through Add Company gets real sync without editing config files.
+        /// All four null together means "this company doesn't sync anywhere" (same meaning as a
+        /// tenant with no "..._Remote" appsettings.json entry used to have).
+        /// </summary>
+        public string? RemoteServerName { get; set; }
+        public string? RemoteDatabaseName { get; set; }
+        public string? RemoteUsername { get; set; }
+        public string? RemotePassword { get; set; }
 
         public Company? Company { get; set; }
     }

@@ -20,8 +20,8 @@ Your databases are hosted on **MonsterASP.net**, NOT Azure SQL Database.
 |-------|--------|-------|
 | **Missing comma** | No comma after MasterErp | Added comma ✓ |
 | **Wrong domain** | `.databaseasp.net` | `.databaseeasp.net` ✓ |
-| **Wrong password** (Master) | `j-3ATs+95Lg=` | `rq+3ATs+95Lg+` ✓ |
-| **Wrong password** (Tenant) | `Dt7-2F#sa!4Q` | `D17-2F!sal4lQ` ✓ |
+| **Password format** (Master) | `<wrong-password>` | `<master-password>` ✓ |
+| **Password format** (Tenant) | `<wrong-password>` | `<tenant-password>` ✓ |
 | **Missing port** | No port specified | Added `,1433` ✓ |
 
 ---
@@ -33,7 +33,7 @@ Your databases are hosted on **MonsterASP.net**, NOT Azure SQL Database.
 Server=db67905.public.databaseeasp.net,1433;
 Database=db67905;
 User Id=db67905;
-Password=rq+3ATs+95Lg+;
+Password=<MASTER_DB_PASSWORD>;
 Encrypt=True;
 TrustServerCertificate=True;
 MultipleActiveResultSets=True;
@@ -44,7 +44,7 @@ MultipleActiveResultSets=True;
 Server=db67904.public.databaseeasp.net,1433;
 Database=db67904;
 User Id=db67904;
-Password=D17-2F!sal4lQ;
+Password=<TENANT_DB_PASSWORD>;
 Encrypt=True;
 TrustServerCertificate=True;
 MultipleActiveResultSets=True;
@@ -77,7 +77,7 @@ Both MonsterASP databases should now be accessible:
 Server: db67905.public.databaseeasp.net,1433
 Authentication: SQL Server Authentication
 Login: db67905
-Password: rq+3ATs+95Lg+
+Password: <MASTER_DB_PASSWORD>
 Database: db67905
 Encryption: Required
 ```
@@ -99,8 +99,8 @@ Create `SNAP.api/appsettings.Development.json`:
 ```json
 {
   "ConnectionStrings": {
-	"MasterErp": "Server=db67905.public.databaseeasp.net,1433;Database=db67905;User Id=db67905;Password=rq+3ATs+95Lg+;Encrypt=True;TrustServerCertificate=True;MultipleActiveResultSets=True;",
-	"TenantErp": "Server=db67904.public.databaseeasp.net,1433;Database=db67904;User Id=db67904;Password=D17-2F!sal4lQ;Encrypt=True;TrustServerCertificate=True;MultipleActiveResultSets=True;"
+	"MasterErp": "Server=db67905.public.databaseeasp.net,1433;Database=db67905;User Id=db67905;Password=<MASTER_DB_PASSWORD>;Encrypt=True;TrustServerCertificate=True;MultipleActiveResultSets=True;",
+	"TenantErp": "Server=db67904.public.databaseeasp.net,1433;Database=db67904;User Id=db67904;Password=<TENANT_DB_PASSWORD>;Encrypt=True;TrustServerCertificate=True;MultipleActiveResultSets=True;"
   }
 }
 ```
@@ -109,8 +109,8 @@ Create `SNAP/appsettings.json` (for WinForms if needed):
 ```json
 {
   "ConnectionStrings": {
-	"MasterErp": "Server=db67905.public.databaseeasp.net,1433;Database=db67905;User Id=db67905;Password=rq+3ATs+95Lg+;Encrypt=True;TrustServerCertificate=True;MultipleActiveResultSets=True;",
-	"TenantErp": "Server=db67904.public.databaseeasp.net,1433;Database=db67904;User Id=db67904;Password=D17-2F!sal4lQ;Encrypt=True;TrustServerCertificate=True;MultipleActiveResultSets=True;"
+	"MasterErp": "Server=db67905.public.databaseeasp.net,1433;Database=db67905;User Id=db67905;Password=<MASTER_DB_PASSWORD>;Encrypt=True;TrustServerCertificate=True;MultipleActiveResultSets=True;",
+	"TenantErp": "Server=db67904.public.databaseeasp.net,1433;Database=db67904;User Id=db67904;Password=<TENANT_DB_PASSWORD>;Encrypt=True;TrustServerCertificate=True;MultipleActiveResultSets=True;"
   }
 }
 ```

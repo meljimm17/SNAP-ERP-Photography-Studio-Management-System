@@ -18,26 +18,38 @@ namespace SNAP.api.Controllers
     /// </summary>
     [ApiController]
     [Authorize]
+    [RequirePlanTier(PlanTier.Small)]
+    [RequireAccessLevel(SystemModule.InventoryManagement, AccessLevel.AssignedView)]
     [Route("api/inventory")]
     public class InventoryController : ControllerBase
     {
         private readonly TenantDbContextFactory _tenantDbContextFactory;
+        private readonly BranchScope _branchScope;
 
-        public InventoryController(TenantDbContextFactory tenantDbContextFactory)
+        public InventoryController(TenantDbContextFactory tenantDbContextFactory, BranchScope branchScope)
         {
             _tenantDbContextFactory = tenantDbContextFactory;
+            _branchScope = branchScope;
         }
 
         // ----- Inventory Items -----
 
+        /// <summary>
+        /// branchId is a request for a company-wide role only; a branch-bound caller's own branch
+        /// always wins, so passing someone else's id here changes nothing.
+        /// </summary>
         [HttpGet("items")]
-        public ActionResult<List<InventoryRow>> GetInventoryItems()
+        public ActionResult<List<InventoryRow>> GetInventoryItems(int? branchId = null)
         {
             var db = _tenantDbContextFactory.GetTenantDbContext();
+            var scopedBranchId = _branchScope.ResolveForRead(branchId);
             var rows = db.InventoryItems
                 .Include(x => x.Supplier)
+                .Include(x => x.Branch)
                 .Where(x => x.IsActive)
+                .Where(x => scopedBranchId == null || x.BranchId == scopedBranchId)
                 .OrderByDescending(x => x.LastUpdatedAt)
+                .ThenByDescending(x => x.InventoryId)
                 .Select(x => new InventoryRow
                 {
                     InventoryId = x.InventoryId,
@@ -49,17 +61,38 @@ namespace SNAP.api.Controllers
                     Supplier = x.Supplier != null ? x.Supplier.SupplierName : string.Empty,
                     IsForSale = x.IsForSale,
                     SellingPrice = x.SellingPrice,
-                    UnitCost = x.UnitCost
+                    UnitCost = x.UnitCost,
+                    BranchId = x.BranchId,
+                    BranchName = x.Branch != null ? x.Branch.BranchName : string.Empty
                 })
                 .ToList();
             return Ok(rows);
+        }
+
+        /// <summary>Every distinct category already in use, company-wide (not branch-filtered -
+        /// categories are a shared classification, not branch-owned data) and across both active
+        /// and retired items, so a category stays pickable even if its only current item was
+        /// deleted. Backs the Category dropdown on Add/Edit Item - picking from what already
+        /// exists instead of retyping it avoids "Printing Supplies" vs "Printing Suplies" silently
+        /// splitting into two categories that look identical in a report.</summary>
+        [HttpGet("categories")]
+        public ActionResult<List<string>> GetCategories()
+        {
+            var db = _tenantDbContextFactory.GetTenantDbContext();
+            var categories = db.InventoryItems
+                .Where(x => x.Category != null && x.Category != "")
+                .Select(x => x.Category!)
+                .Distinct()
+                .OrderBy(x => x)
+                .ToList();
+            return Ok(categories);
         }
 
         [HttpGet("items/active")]
         public ActionResult<List<InventoryItemDto>> GetActiveInventoryItems()
         {
             var db = _tenantDbContextFactory.GetTenantDbContext();
-            var items = db.InventoryItems.Where(x => x.IsActive).OrderBy(x => x.ItemName)
+            var items = db.InventoryItems.Where(x => x.IsActive).OrderByDescending(x => x.LastUpdatedAt).ThenByDescending(x => x.InventoryId)
                 .Select(x => ToDto(x)).ToList();
             return Ok(items);
         }
@@ -70,15 +103,21 @@ namespace SNAP.api.Controllers
             var db = _tenantDbContextFactory.GetTenantDbContext();
             var entity = db.InventoryItems.Find(id);
             if (entity is null) return NotFound(new { message = "That inventory item no longer exists." });
+
+            // A branch-bound caller may only touch their own branch's stock - without this they
+            // could edit, restock or sell another branch's item just by guessing its id.
+            _branchScope.EnsureCanAccess(entity.BranchId);
             return Ok(ToDto(entity));
         }
 
+        [RequireAccessLevel(SystemModule.InventoryManagement, AccessLevel.Manage)]
         [HttpPost("items")]
         public IActionResult AddInventoryItem(AddInventoryItemRequest request)
         {
             var db = _tenantDbContextFactory.GetTenantDbContext();
             db.InventoryItems.Add(new Inventory
             {
+                BranchId = _branchScope.ResolveForWrite(db, request.BranchId),
                 ItemName = request.ItemName,
                 Category = request.Category,
                 QuantityOnHand = request.QuantityOnHand,
@@ -93,12 +132,17 @@ namespace SNAP.api.Controllers
             return Ok();
         }
 
+        [RequireAccessLevel(SystemModule.InventoryManagement, AccessLevel.Manage)]
         [HttpPut("items/{id:int}")]
         public IActionResult UpdateInventoryItem(int id, UpdateInventoryItemRequest request)
         {
             var db = _tenantDbContextFactory.GetTenantDbContext();
             var entity = db.InventoryItems.Find(id);
             if (entity is null) return NotFound(new { message = "That inventory item no longer exists." });
+
+            // A branch-bound caller may only touch their own branch's stock - without this they
+            // could edit, restock or sell another branch's item just by guessing its id.
+            _branchScope.EnsureCanAccess(entity.BranchId);
 
             entity.ItemName = request.ItemName;
             entity.Category = request.Category;
@@ -113,6 +157,7 @@ namespace SNAP.api.Controllers
             return Ok();
         }
 
+        [RequireAccessLevel(SystemModule.InventoryManagement, AccessLevel.Manage)]
         [HttpDelete("items/{id:int}")]
         public IActionResult DeleteInventoryItem(int id)
         {
@@ -120,18 +165,27 @@ namespace SNAP.api.Controllers
             var entity = db.InventoryItems.Find(id);
             if (entity is null) return NotFound(new { message = "That inventory item no longer exists." });
 
+            // A branch-bound caller may only touch their own branch's stock - without this they
+            // could edit, restock or sell another branch's item just by guessing its id.
+            _branchScope.EnsureCanAccess(entity.BranchId);
+
             entity.IsActive = false;
             entity.LastUpdatedAt = DateTime.UtcNow;
             Save(db);
             return Ok();
         }
 
+        [RequireAccessLevel(SystemModule.InventoryManagement, AccessLevel.Manage)]
         [HttpPost("items/{id:int}/restock")]
         public IActionResult RestockInventoryItem(int id, RestockRequest request)
         {
             var db = _tenantDbContextFactory.GetTenantDbContext();
             var entity = db.InventoryItems.Find(id);
             if (entity is null) return NotFound(new { message = "That inventory item no longer exists." });
+
+            // A branch-bound caller may only touch their own branch's stock - without this they
+            // could edit, restock or sell another branch's item just by guessing its id.
+            _branchScope.EnsureCanAccess(entity.BranchId);
 
             var supplierName = request.SupplierId is int supplierId
                 ? db.Suppliers.Find(supplierId)?.SupplierName ?? "supplier"
@@ -148,12 +202,17 @@ namespace SNAP.api.Controllers
             return Ok();
         }
 
+        [RequireAccessLevel(SystemModule.InventoryManagement, AccessLevel.Manage)]
         [HttpPost("items/{id:int}/sell")]
         public IActionResult SellInventoryItem(int id, SellRequest request)
         {
             var db = _tenantDbContextFactory.GetTenantDbContext();
             var entity = db.InventoryItems.Find(id);
             if (entity is null) return NotFound(new { message = "That inventory item no longer exists." });
+
+            // A branch-bound caller may only touch their own branch's stock - without this they
+            // could edit, restock or sell another branch's item just by guessing its id.
+            _branchScope.EnsureCanAccess(entity.BranchId);
 
             if (!entity.IsForSale)
             {
@@ -176,7 +235,11 @@ namespace SNAP.api.Controllers
                 TotalAmount = request.Quantity * unitPrice,
                 SaleDate = DateTime.Today,
                 PaymentMethod = request.PaymentMethod,
-                CreatedAt = DateTime.UtcNow
+                CreatedAt = DateTime.UtcNow,
+                // Required column - a walk-in sale always belongs to the branch the item being
+                // sold is stocked at, same as AddOnsService inherits a booking add-on's branch
+                // from its Booking. Missing this was a guaranteed FK violation on every sale.
+                BranchId = entity.BranchId
             });
             entity.QuantityOnHand -= request.Quantity;
             entity.LastUpdatedAt = DateTime.UtcNow;
@@ -191,7 +254,7 @@ namespace SNAP.api.Controllers
         public ActionResult<List<SupplierDto>> GetSuppliers()
         {
             var db = _tenantDbContextFactory.GetTenantDbContext();
-            var suppliers = db.Suppliers.Where(x => x.IsActive).OrderByDescending(x => x.CreatedAt)
+            var suppliers = db.Suppliers.Where(x => x.IsActive).OrderByDescending(x => x.CreatedAt).ThenByDescending(x => x.SupplierId)
                 .Select(x => ToDto(x)).ToList();
             return Ok(suppliers);
         }
@@ -235,6 +298,7 @@ namespace SNAP.api.Controllers
             return Ok(rows);
         }
 
+        [RequireAccessLevel(SystemModule.InventoryManagement, AccessLevel.Manage)]
         [HttpPost("suppliers")]
         public IActionResult AddSupplier(AddSupplierRequest request)
         {
@@ -252,6 +316,7 @@ namespace SNAP.api.Controllers
             return Ok();
         }
 
+        [RequireAccessLevel(SystemModule.InventoryManagement, AccessLevel.Manage)]
         [HttpPut("suppliers/{id:int}")]
         public IActionResult UpdateSupplier(int id, UpdateSupplierRequest request)
         {
@@ -268,6 +333,7 @@ namespace SNAP.api.Controllers
             return Ok();
         }
 
+        [RequireAccessLevel(SystemModule.InventoryManagement, AccessLevel.Manage)]
         [HttpDelete("suppliers/{id:int}")]
         public IActionResult DeleteSupplier(int id)
         {
@@ -283,17 +349,23 @@ namespace SNAP.api.Controllers
         // ----- Purchase Orders -----
 
         [HttpGet("purchase-orders")]
-        public ActionResult<List<PurchaseOrderRow>> GetPurchaseOrders()
+        public ActionResult<List<PurchaseOrderRow>> GetPurchaseOrders(int? branchId = null)
         {
             var db = _tenantDbContextFactory.GetTenantDbContext();
+            var scopedBranchId = _branchScope.ResolveForRead(branchId);
             var rows = db.PurchaseOrders
                 .Include(p => p.Supplier)
                 .Include(p => p.Lines)
+                .Include(p => p.Branch)
+                .Where(p => scopedBranchId == null || p.BranchId == scopedBranchId)
                 .OrderByDescending(p => p.CreatedAt)
+                .ThenByDescending(p => p.PurchaseOrderId)
                 .AsEnumerable()
                 .Select(p => new PurchaseOrderRow
                 {
                     PurchaseOrderId = p.PurchaseOrderId,
+                    BranchId = p.BranchId,
+                    BranchName = p.Branch?.BranchName ?? string.Empty,
                     Supplier = p.Supplier?.SupplierName ?? $"Supplier #{p.SupplierId}",
                     Status = p.Status.ToString(),
                     OrderDate = p.OrderDate,
@@ -313,6 +385,8 @@ namespace SNAP.api.Controllers
                 .FirstOrDefault(p => p.PurchaseOrderId == id);
             if (po is null) return NotFound(new { message = "That purchase order no longer exists." });
 
+            _branchScope.EnsureCanAccess(po.BranchId);
+
             if (po.Status is not (PurchaseOrderStatus.Draft or PurchaseOrderStatus.Ordered))
             {
                 return BadRequest(new { message = "Only Draft or Ordered purchase orders can be edited." });
@@ -329,6 +403,8 @@ namespace SNAP.api.Controllers
                 .FirstOrDefault(p => p.PurchaseOrderId == id);
             if (po is null) return NotFound(new { message = "That purchase order no longer exists." });
 
+            _branchScope.EnsureCanAccess(po.BranchId);
+
             if (po.Status is not (PurchaseOrderStatus.Ordered or PurchaseOrderStatus.PartiallyReceived))
             {
                 return BadRequest(new { message = "Only an Ordered or Partially Received purchase order can be received against." });
@@ -337,6 +413,7 @@ namespace SNAP.api.Controllers
             return Ok(ToDetail(po));
         }
 
+        [RequireAccessLevel(SystemModule.InventoryManagement, AccessLevel.Manage)]
         [HttpPost("purchase-orders")]
         public IActionResult AddPurchaseOrder(AddPurchaseOrderRequest request)
         {
@@ -345,6 +422,7 @@ namespace SNAP.api.Controllers
 
             var po = new PurchaseOrder
             {
+                BranchId = _branchScope.ResolveForWrite(db, request.BranchId),
                 SupplierId = request.SupplierId,
                 Status = request.Status,
                 OrderDate = request.OrderDate,
@@ -365,12 +443,15 @@ namespace SNAP.api.Controllers
             return Ok();
         }
 
+        [RequireAccessLevel(SystemModule.InventoryManagement, AccessLevel.Manage)]
         [HttpPut("purchase-orders/{id:int}")]
         public IActionResult UpdatePurchaseOrder(int id, UpdatePurchaseOrderRequest request)
         {
             var db = _tenantDbContextFactory.GetTenantDbContext();
             var po = db.PurchaseOrders.Include(p => p.Lines).FirstOrDefault(p => p.PurchaseOrderId == id);
             if (po is null) return NotFound(new { message = "That purchase order no longer exists." });
+
+            _branchScope.EnsureCanAccess(po.BranchId);
 
             po.SupplierId = request.SupplierId;
             po.Status = request.Status;
@@ -389,6 +470,7 @@ namespace SNAP.api.Controllers
             return Ok();
         }
 
+        [RequireAccessLevel(SystemModule.InventoryManagement, AccessLevel.Manage)]
         [HttpPost("purchase-orders/{id:int}/receive")]
         public ActionResult<ReceivePurchaseOrderResponse> ReceivePurchaseOrder(int id, ReceivePurchaseOrderRequest request)
         {
@@ -398,6 +480,37 @@ namespace SNAP.api.Controllers
                 .Include(p => p.Lines)
                 .FirstOrDefault(p => p.PurchaseOrderId == id);
             if (po is null) return NotFound(new { message = "That purchase order no longer exists." });
+
+            _branchScope.EnsureCanAccess(po.BranchId);
+
+            // The WinForms dialog already checks these, but that's a UI convenience, not
+            // enforcement - the same standard every other server-side check in this app holds to.
+            // Validated as a separate pass, before anything is applied, so a bad line in the batch
+            // can't leave some earlier lines already updated while rejecting the whole request.
+            foreach (var receipt in request.Receipts)
+            {
+                var line = po.Lines.FirstOrDefault(l => l.PurchaseOrderLineId == receipt.PurchaseOrderLineId);
+                if (line is null)
+                {
+                    return BadRequest(new { message = "That line doesn't belong to this purchase order." });
+                }
+
+                if (receipt.QuantityReceivedNow < 0)
+                {
+                    return BadRequest(new { message = "Receive Now quantity cannot be negative." });
+                }
+
+                var remaining = line.QuantityOrdered - line.QuantityReceived;
+                if (receipt.QuantityReceivedNow > remaining)
+                {
+                    return BadRequest(new { message = $"'{line.InventoryId}' only has {remaining:0.##} remaining to receive." });
+                }
+
+                if (receipt.UnitCost < 0)
+                {
+                    return BadRequest(new { message = "Unit cost cannot be negative." });
+                }
+            }
 
             decimal expenseAmount = 0m;
             foreach (var receipt in request.Receipts)
@@ -432,7 +545,10 @@ namespace SNAP.api.Controllers
                 PurchaseOrderId = po.PurchaseOrderId,
                 IsPaid = false,
                 PaidDate = null,
-                CreatedAt = DateTime.UtcNow
+                CreatedAt = DateTime.UtcNow,
+                // Required column, and unset here was a guaranteed crash on every receive - a PO's
+                // own receiving cost belongs to the same branch the PO itself was raised against.
+                BranchId = po.BranchId
             };
             db.Expenses.Add(expense);
 
@@ -457,6 +573,7 @@ namespace SNAP.api.Controllers
                 .Include(p => p.Booking)
                 .Where(p => !p.IsDeleted)
                 .OrderByDescending(p => p.CreatedAt)
+                .ThenByDescending(p => p.ProductSaleId)
                 .Select(p => new ProductSaleRow
                 {
                     SaleDate = p.SaleDate,
@@ -496,8 +613,19 @@ namespace SNAP.api.Controllers
 
         private void Save(SNAP.infrastructure.Data.TenantErpDbContext db, Func<Microsoft.EntityFrameworkCore.ChangeTracking.EntityEntry, string?>? summarySelector = null)
         {
+            var changedEntries = TenantSyncService.CaptureSyncableChanges(db);
+
             AuditLogWriter.QueueAuditEntries(db, _tenantDbContextFactory.GetActorUserId(), _tenantDbContextFactory.GetActorName(), summarySelector);
             db.SaveChanges();
+
+            if (changedEntries.Count == 0)
+            {
+                return;
+            }
+
+            TenantSyncService.QueueOutboxEntries(db, changedEntries);
+            db.SaveChanges();
+            TenantSyncService.TriggerBackgroundPush(db);
         }
 
         private static InventoryItemDto ToDto(Inventory x) => new()

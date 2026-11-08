@@ -53,6 +53,21 @@ namespace SNAP.infrastructure.Migrations
                         .HasColumnType("int")
                         .HasDefaultValue(0);
 
+                    b.Property<int?>("RequestedPlanTier")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime?>("SubscriptionRenewalDate")
+                        .HasColumnType("datetime2");
+
+                    b.Property<DateTime>("SubscriptionStartDate")
+                        .HasColumnType("datetime2");
+
+                    b.Property<int>("SubscriptionStatus")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime?>("UpgradeRequestedAt")
+                        .HasColumnType("datetime2");
+
                     b.HasKey("CompanyId");
 
                     b.HasIndex("CompanyCode")
@@ -85,6 +100,18 @@ namespace SNAP.infrastructure.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("bit")
                         .HasDefaultValue(true);
+
+                    b.Property<string>("RemoteDatabaseName")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("RemotePassword")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("RemoteServerName")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("RemoteUsername")
+                        .HasColumnType("nvarchar(max)");
 
                     b.Property<string>("ServerName")
                         .IsRequired()

@@ -44,7 +44,13 @@ namespace SNAP.api.Services
                 ?? throw new InvalidOperationException("This company's database is not configured.");
 
             var connectionString = ConnectionStrings.BuildTenantConnectionString(companyDb.ServerName, companyDb.DatabaseName, companyDb.CredentialKey);
-            var options = new DbContextOptionsBuilder<TenantErpDbContext>().UseSqlServer(connectionString).Options;
+            // Retry-enabled for the same reason Program.cs enables it on the DI-registered
+            // contexts - this is the one actually used per request, though, so without this the
+            // DI registration's retry policy never protected a single real tenant call. A remote
+            // free-tier SQL host drops connections often enough that this isn't optional.
+            var options = new DbContextOptionsBuilder<TenantErpDbContext>()
+                .UseSqlServer(connectionString, sql => sql.EnableRetryOnFailure(3))
+                .Options;
 
             _tenantDb = new TenantErpDbContext(options);
 

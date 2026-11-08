@@ -1,9 +1,7 @@
 using System.Drawing;
 using System.Windows.Forms;
-using Microsoft.EntityFrameworkCore;
 using SNAP.Controls;
 using SNAP.domain.enums;
-using SNAP.infrastructure.Data;
 using SNAP.infrastructure.services;
 
 namespace SNAP
@@ -132,48 +130,52 @@ namespace SNAP
                 return;
             }
 
-            var result = AuthenticationService.TryAuthenticateCompany(companyCode, username, password);
-            if (!result.Success)
+            // Authenticates against SNAP.api's /api/auth/company-login instead of calling
+            // AuthenticationService in-process: the credential/tier check itself still runs
+            // AuthenticationService.TryAuthenticateCompany, just server-side, which is what
+            // actually decides success/failure here.
+            ApiCompanyLoginResponse loginResponse;
+            // The window is frozen until the API answers - the wait cursor says so, instead of
+            // inviting a second click that would land on the Dashboard (see InputQueue).
+            Cursor.Current = Cursors.WaitCursor;
+            try
             {
-                MessageBox.Show(result.Message, "Login Failed", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                loginResponse = ApiClient.Post<ApiCompanyLoginResponse>("/api/auth/company-login",
+                    new { companyCode, username, password });
+            }
+            catch (Exception ex)
+            {
+                Cursor.Current = Cursors.Default;
+                MessageBox.Show(ex.Message, "Login Failed", MessageBoxButtons.OK, MessageBoxIcon.Warning);
                 return;
             }
 
             AppSession.CurrentCompanyCode = companyCode;
-            AppSession.CurrentCompanyId = result.CompanyId;
+            AppSession.CurrentCompanyId = loginResponse.CompanyId;
             AppSession.CurrentUsername = username;
-            AppSession.CurrentRole = result.Role;
-            AppSession.CurrentDisplayName = result.DisplayName;
-            AppSession.CurrentTenantConnectionString = result.TenantConnectionString;
-            AppSession.CurrentPlanTier = result.PlanTier;
-            AppSession.CurrentUserId = result.UserId;
+            AppSession.CurrentRole = Enum.Parse<SystemRole>(loginResponse.Role);
+            AppSession.CurrentDisplayName = loginResponse.DisplayName;
+            AppSession.CurrentPlanTier = Enum.Parse<PlanTier>(loginResponse.PlanTier);
+            AppSession.CurrentUserId = loginResponse.UserId;
+            AppSession.CurrentApiToken = loginResponse.Token;
 
-            TenantSyncService.CurrentActorUserId = result.UserId > 0 ? result.UserId : null;
-            TenantSyncService.CurrentActorName = result.DisplayName;
+            // Null for a company-wide role (Admin/FinanceManager) and for every company below
+            // Medium tier. Only used to decide whether a screen shows a branch picker - the API
+            // re-reads the same value from the signed token, so this can't be used to widen access.
+            AppSession.CurrentBranchId = loginResponse.BranchId;
 
-            var connectionStringForCatchUp = AppSession.CurrentTenantConnectionString ?? AppDbConfig.TenantErpConnectionString;
-            Task.Run(() => TenantSyncService.TryPushPending(connectionStringForCatchUp));
+            // The API already decided this login is valid - this is a second, independent lookup
+            // (not a credential check) purely so modules not yet converted to call SNAP.api know
+            // which physical tenant database is *this* company's. Without it, AppSession.
+            // CurrentTenantConnectionString would stay null and every legacy module would silently
+            // fall back to the single default TenantErp connection string - meaning a company like
+            // tenant_b would see whatever company that default happens to point at instead of its
+            // own data (exactly the "tenant_b shows tenant_a's bookings/payments" bug). Best-effort:
+            // if it fails, those modules just fall back the same way they already did before this.
+            AppSession.CurrentTenantConnectionString = AuthenticationService.ResolveTenantConnectionString(companyCode);
 
-            // Modules already converted to call SNAP.api (currently just Inventory) need a bearer
-            // token - fetched separately from the in-process AuthenticationService check above,
-            // since the API does its own independent credential/tier check server-side rather than
-            // trusting this client's result. Best-effort: while the migration to an API-backed
-            // client is still in progress, every module *except* the converted ones works fully
-            // offline from the API's perspective, so a token fetch failure here only breaks the
-            // converted modules, not the whole login.
-            try
-            {
-                var loginResponse = ApiClient.Post<ApiCompanyLoginResponse>("/api/auth/company-login",
-                    new { companyCode, username, password });
-                AppSession.CurrentApiToken = loginResponse.Token;
-            }
-            catch (Exception ex)
-            {
-                AppSession.CurrentApiToken = null;
-                MessageBox.Show(
-                    $"Signed in, but couldn't reach the SNAP server for modules that need it (e.g. Inventory):\n\n{ex.Message}",
-                    "SNAP Server Unavailable", MessageBoxButtons.OK, MessageBoxIcon.Warning);
-            }
+            TenantSyncService.CurrentActorUserId = loginResponse.UserId > 0 ? loginResponse.UserId : null;
+            TenantSyncService.CurrentActorName = loginResponse.DisplayName;
 
             var dashboard = new MainDashboardForm();
             dashboard.Show();
@@ -290,7 +292,8 @@ namespace SNAP
                 AppSession.CurrentDisplayName = result.DisplayName;
 
                 var companyForm = new SystemAdminCompanyForm();
-                companyForm.ShowDialog(this);
+                companyForm.Show();
+                Hide();
             };
 
             card.Controls.Add(logo);

@@ -21,7 +21,7 @@ namespace SNAP.api.Services
             _configuration = configuration;
         }
 
-        public string GenerateToken(int userId, SystemRole role, int companyId, PlanTier planTier, string displayName)
+        public string GenerateToken(int userId, SystemRole role, int companyId, PlanTier planTier, string displayName, int? branchId = null)
         {
             var key = _configuration["Jwt:Key"]
                 ?? throw new InvalidOperationException("Jwt:Key is not configured.");
@@ -36,6 +36,14 @@ namespace SNAP.api.Services
                 new("planTier", planTier.ToString()),
                 new(JwtRegisteredClaimNames.Name, displayName)
             };
+
+            // Only branch-bound roles carry this. Its absence is what marks a company-wide role
+            // (Admin/FinanceManager/SuperAdmin) as allowed to see every branch - BranchScope reads
+            // it rather than trusting any branch id the client sends on the request.
+            if (branchId is not null)
+            {
+                claims.Add(new Claim("branchId", branchId.Value.ToString()));
+            }
 
             var credentials = new SigningCredentials(new SymmetricSecurityKey(Encoding.UTF8.GetBytes(key)), SecurityAlgorithms.HmacSha256);
 

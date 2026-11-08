@@ -1,10 +1,25 @@
 # Real database credentials - see the matching appsettings.example.json for the template.
 SNAP/appsettings.json
 SNAP.api/appsettings.json
+appsettings.*.json
+!appsettings.example.json
 
-# Build output
+# Build output & packages
 bin/
 obj/
+[Bb]in/
+[Oo]bj/
+*.nupkg
 
-# Visual Studio
+# Visual Studio & IDE files
 .vs/
+*.user
+*.suo
+*.userprefs
+*.sln.docstates
+*.slnLaunch.user
+
+# AI assistant / scratch files
+.claude/
+scratch_prompt.txt
+spec.txt
